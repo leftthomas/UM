@@ -109,13 +109,18 @@ def compute_metric(vectors, domains, labels):
 
 if __name__ == '__main__':
     import json
-    with open('/home/rh/Downloads/activitynet/activity_net.v1-2.min.json', 'r') as load_f:
+    import shutil
+
+    keys = []
+    with open('/home/rh/Downloads/activitynet/activity_net.v1-3.min.json', 'r') as load_f:
         load_dict = json.load(load_f)
-        # {'training', 'validation', 'testing'}
-        labels = set()
         for key, value in load_dict['database'].items():
             video_name = key
             video_split = value['subset']
-            labels.add(video_split)
-        print(labels)
-
+            if video_split == 'training':
+                keys.append(video_name)
+    videos = glob.glob('/home/rh/Downloads/activitynet/v1-3/train_val/*')
+    names = [os.path.basename(f).split('.')[0][2:] for f in videos]
+    for name, path in zip(names, videos):
+        if name in keys:
+            shutil.move(path, '/home/rh/Downloads/activitynet/v1-3/train/')
