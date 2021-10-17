@@ -1,98 +1,90 @@
-import timm
+import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
-class ResidualBlock(nn.Module):
-    def __init__(self, in_channels):
-        super(ResidualBlock, self).__init__()
+class CAS_Module(nn.Module):
+    def __init__(self, len_feature, num_classes):
+        super(CAS_Module, self).__init__()
+        self.len_feature = len_feature
+        self.conv = nn.Sequential(
+            nn.Conv1d(in_channels=self.len_feature, out_channels=2048, kernel_size=3,
+                      stride=1, padding=1),
+            nn.ReLU()
+        )
 
-        self.conv = nn.Sequential(nn.Conv2d(in_channels, in_channels, 3, padding=1, padding_mode='reflect'),
-                                  nn.InstanceNorm2d(in_channels), nn.ReLU(inplace=True),
-                                  nn.Conv2d(in_channels, in_channels, 3, padding=1, padding_mode='reflect'),
-                                  nn.InstanceNorm2d(in_channels))
-
-    def forward(self, x):
-        return x + self.conv(x)
-
-
-class Generator(nn.Module):
-    def __init__(self, in_channels=64, num_block=9):
-        super(Generator, self).__init__()
-
-        # in conv
-        self.in_conv = nn.Sequential(nn.Conv2d(3, in_channels, 7, padding=3, padding_mode='reflect'),
-                                     nn.InstanceNorm2d(in_channels), nn.ReLU(inplace=True))
-
-        # down sample
-        down_sample = []
-        for _ in range(2):
-            out_channels = in_channels * 2
-            down_sample += [nn.Conv2d(in_channels, out_channels, 3, stride=2, padding=1),
-                            nn.InstanceNorm2d(out_channels), nn.ReLU(inplace=True)]
-            in_channels = out_channels
-        self.down_sample = nn.Sequential(*down_sample)
-
-        # conv blocks
-        self.convs = nn.Sequential(*[ResidualBlock(in_channels) for _ in range(num_block)])
-
-        # up sample
-        up_sample = []
-        for _ in range(2):
-            out_channels = in_channels // 2
-            up_sample += [nn.ConvTranspose2d(in_channels, out_channels, 3, stride=2, padding=1, output_padding=1),
-                          nn.InstanceNorm2d(out_channels), nn.ReLU(inplace=True)]
-            in_channels = out_channels
-        self.up_sample = nn.Sequential(*up_sample)
-
-        # out conv
-        self.out_conv = nn.Sequential(nn.Conv2d(in_channels, 3, 7, padding=3, padding_mode='reflect'), nn.Tanh())
+        self.classifier = nn.Sequential(
+            nn.Conv1d(in_channels=2048, out_channels=num_classes, kernel_size=1,
+                      stride=1, padding=0, bias=False)
+        )
+        self.drop_out = nn.Dropout(p=0.7)
 
     def forward(self, x):
-        x = self.in_conv(x)
-        x = self.down_sample(x)
-        x = self.convs(x)
-        x = self.up_sample(x)
-        out = self.out_conv(x)
-        return out
+        # x: (B, T, F)
+        out = x.permute(0, 2, 1)
+        # out: (B, F, T)
+        out = self.conv(out)
+        features = out.permute(0, 2, 1)
+        out = self.drop_out(out)
+        out = self.classifier(out)
+        out = out.permute(0, 2, 1)
+        # out: (B, T, C)
+        return out, features
 
 
-class Discriminator(nn.Module):
-    def __init__(self, in_channels=64):
-        super(Discriminator, self).__init__()
+class Model(nn.Module):
+    def __init__(self, len_feature, num_classes, r_act, r_bkg):
+        super(Model, self).__init__()
+        self.len_feature = len_feature
+        self.num_classes = num_classes
 
-        self.conv1 = nn.Sequential(nn.Conv2d(3, in_channels, 4, stride=2, padding=1), nn.LeakyReLU(0.2, inplace=True))
+        self.cas_module = CAS_Module(len_feature, num_classes)
 
-        self.conv2 = nn.Sequential(nn.Conv2d(in_channels, in_channels * 2, 4, stride=2, padding=1),
-                                   nn.InstanceNorm2d(in_channels * 2), nn.LeakyReLU(0.2, inplace=True))
+        self.softmax = nn.Softmax(dim=1)
 
-        self.conv3 = nn.Sequential(nn.Conv2d(in_channels * 2, in_channels * 4, 4, stride=2, padding=1),
-                                   nn.InstanceNorm2d(in_channels * 4), nn.LeakyReLU(0.2, inplace=True))
+        self.softmax_2 = nn.Softmax(dim=2)
 
-        self.conv4 = nn.Sequential(nn.Conv2d(in_channels * 4, in_channels * 8, 4, padding=1),
-                                   nn.InstanceNorm2d(in_channels * 8), nn.LeakyReLU(0.2, inplace=True))
+        self.r_act = r_act
+        self.r_bkg = r_bkg
 
-        self.conv5 = nn.Conv2d(in_channels * 8, 1, 4, padding=1)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
-        x = self.conv3(x)
-        x = self.conv4(x)
-        out = self.conv5(x)
-        return out
-
-
-class Extractor(nn.Module):
-    def __init__(self, backbone_type, emb_dim):
-        super(Extractor, self).__init__()
-
-        # backbone
-        model_name = 'resnet50' if backbone_type == 'resnet50' else 'vgg16'
-        self.backbone = timm.create_model(model_name, pretrained=True, num_classes=emb_dim, global_pool='max')
+        self.drop_out = nn.Dropout(p=0.7)
 
     def forward(self, x):
-        x = self.backbone(x)
-        out = F.normalize(x, dim=-1)
-        return out
+        num_segments = x.shape[1]
+        k_act = num_segments // self.r_act
+        k_bkg = num_segments // self.r_bkg
 
+        cas, features = self.cas_module(x)
+
+        feat_magnitudes = torch.norm(features, p=2, dim=2)
+
+        select_idx = torch.ones_like(feat_magnitudes).cuda()
+        select_idx = self.drop_out(select_idx)
+
+        feat_magnitudes_drop = feat_magnitudes * select_idx
+
+        feat_magnitudes_rev = torch.max(feat_magnitudes, dim=1, keepdim=True)[0] - feat_magnitudes
+        feat_magnitudes_rev_drop = feat_magnitudes_rev * select_idx
+
+        _, sorted_idx = feat_magnitudes_drop.sort(descending=True, dim=1)
+        idx_act = sorted_idx[:, :k_act]
+        idx_act_feat = idx_act.unsqueeze(2).expand([-1, -1, features.shape[2]])
+
+        _, sorted_idx = feat_magnitudes_rev_drop.sort(descending=True, dim=1)
+        idx_bkg = sorted_idx[:, :k_bkg]
+        idx_bkg_feat = idx_bkg.unsqueeze(2).expand([-1, -1, features.shape[2]])
+        idx_bkg_cas = idx_bkg.unsqueeze(2).expand([-1, -1, cas.shape[2]])
+
+        feat_act = torch.gather(features, 1, idx_act_feat)
+        feat_bkg = torch.gather(features, 1, idx_bkg_feat)
+
+        sorted_scores, _ = cas.sort(descending=True, dim=1)
+        topk_scores = sorted_scores[:, :k_act, :]
+        score_act = torch.mean(topk_scores, dim=1)
+        score_bkg = torch.mean(torch.gather(cas, 1, idx_bkg_cas), dim=1)
+
+        score_act = self.softmax(score_act)
+        score_bkg = self.softmax(score_bkg)
+
+        cas_softmax = self.softmax_2(cas)
+
+        return score_act, score_bkg, feat_act, feat_bkg, features, cas_softmax

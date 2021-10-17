@@ -1,199 +1,116 @@
-# MSTP
+# WTAL-Uncertainty-Modeling
 
-A PyTorch implementation of MSTP based on CVPR 2022 paper
-[Map Sketch to Photo for Zero-Shot Sketch-Based Image Retrieval]().
+### Official Pytorch Implementation of '[Weakly-supervised Temporal Action Localization by Uncertainty Modeling](https://arxiv.org/abs/2006.07006)' (AAAI 2021)
 
-![Network Architecture](result/structure.png)
+![architecture](https://user-images.githubusercontent.com/16102333/102174520-03f6c600-3ee1-11eb-953b-ffce66d1ccbe.png)
 
-## Requirements
+> **Weakly-supervised Temporal Action Localization by Uncertainty Modeling**<br>
+> Pilhyeon Lee (Yonsei Univ.), Jinglu Wang (Microsoft Research), Yan Lu (Microsoft Research), Hyeran Byun (Yonsei Univ.)
+>
+> Paper: https://arxiv.org/abs/2006.07006
+>
+> **Abstract:** *Weakly-supervised temporal action localization aims to learn detecting temporal intervals of action classes with only video-level labels. To this end, it is crucial to separate frames of action classes from the background frames (i.e., frames not belonging to any action classes). In this paper, we present a new perspective on background frames where they are modeled as out-of-distribution samples regarding their inconsistency. Then, background frames can be detected by estimating the probability of each frame being out-of-distribution, known as uncertainty, but it is infeasible to directly learn uncertainty without frame-level labels. To realize the uncertainty learning in the weakly-supervised setting, we leverage the multiple instance learning formulation. Moreover, we further introduce a background entropy loss to better discriminate background frames by encouraging their in-distribution (action) probabilities to be uniformly distributed over all action classes. Experimental results show that our uncertainty modeling is effective at alleviating the interference of background frames and brings a large performance gain without bells and whistles. We demonstrate that our model significantly outperforms state-of-the-art methods on the benchmarks, THUMOS'14 and ActivityNet (1.2 & 1.3).*
 
-- [Anaconda](https://www.anaconda.com/download/)
-- [PyTorch](https://pytorch.org)
+## Prerequisites
 
-```
-conda install pytorch=1.9.1 torchvision cudatoolkit -c pytorch
-```
+### Recommended Environment
 
-- [Pytorch Metric Learning](https://kevinmusgrave.github.io/pytorch-metric-learning/)
+* Python 3.6
+* Pytorch 1.6
+* Tensorflow 1.15 (for Tensorboard)
+* CUDA 10.2
 
-```
-pip install pytorch-metric-learning
-```
+### Depencencies
 
-- [Faiss](https://faiss.ai)
+You can set up the environments by using `$ pip3 install -r requirements.txt`.
 
-```
-conda install -c pytorch faiss-cpu
-```
+### Data Preparation
 
-- [Timm](https://rwightman.github.io/pytorch-image-models/)
+1. Prepare [THUMOS'14](https://www.crcv.ucf.edu/THUMOS14/) dataset.
+   - We excluded three test videos (270, 1292, 1496) as previous work did.
 
-```
-pip install timm
-```
+2. Extract features with two-stream I3D networks
+   - We recommend extracting features using [this repo](https://github.com/piergiaj/pytorch-i3d).
+   - For convenience, we provide the features we used. You can find
+     them [here](https://drive.google.com/file/d/1NqaDRo782bGZKo662I0rI_cvpDT67VQU/view?usp=sharing).
 
-## Dataset
+3. Place the features inside the `dataset` folder.
+   - Please ensure the data structure is as below.
 
-[THUMOS 14](http://crcv.ucf.edu/THUMOS14/download.html) and
-[ActivityNet](http://activity-net.org/download.html) datasets are used in this repo, you
-could download these datasets from official websites, or download them from
-[Google Drive](https://drive.google.com/drive/folders/1lce41k7cGNUOwzt-eswCeahDLWG6Cdk0?usp=sharing). The data directory
-structure is shown as follows:
-
- ```
-├──sketchy
-   ├── train
-       ├── sketch
-           ├── airplane
-               ├── n02691156_58-1.jpg
-               └── ...
-           ...
-       ├── photo
-           same structure as sketch
-   ├── val
-      same structure as train
-      ...
-├──tuberlin
-   same structure as sketchy
-   ...
-```
+~~~~
+├── dataset
+   └── THUMOS14
+       ├── gt.json
+       ├── split_train.txt
+       ├── split_test.txt
+       └── features
+           ├── train
+               ├── rgb
+                   ├── video_validation_0000051.npy
+                   ├── video_validation_0000052.npy
+                   └── ...
+               └── flow
+                   ├── video_validation_0000051.npy
+                   ├── video_validation_0000052.npy
+                   └── ...
+           └── test
+               ├── rgb
+                   ├── video_test_0000004.npy
+                   ├── video_test_0000006.npy
+                   └── ...
+               └── flow
+                   ├── video_test_0000004.npy
+                   ├── video_test_0000006.npy
+                   └── ...
+~~~~
 
 ## Usage
 
-### Train Model
+### Running
 
-```
-python train.py --data_name tuberlin
-optional arguments:
---data_root                   Datasets root path [default value is '/data']
---data_name                   Dataset name [default value is 'sketchy'](choices=['sketchy', 'tuberlin'])
---backbone_type               Backbone type [default value is 'resnet50'](choices=['resnet50', 'vgg16'])
---emb_dim                     Embedding dim [default value is 512]
---batch_size                  Number of images in each mini-batch [default value is 64]
---epochs                      Number of epochs over the model to train [default value is 10]
---warmup                      Number of warmups over the extractor to train [default value is 1]
---save_root                   Result saved root path [default value is 'result']
-```
+You can easily train and evaluate the model by running the script below.
 
-### Test Model
+If you want to try other training options, please refer to `options.py`.
 
-```
-python test.py --num 8
-optional arguments:
---data_root                   Datasets root path [default value is '/data']
---query_name                  Query image name [default value is '/data/sketchy/val/sketch/cow/n01887787_591-14.jpg']
---data_base                   Queried database [default value is 'result/sketchy_resnet50_2048_vectors.pth']
---num                         Retrieval number [default value is 4]
---save_root                   Result saved root path [default value is 'result']
-```
+~~~~
+$ bash run.sh
+~~~~
 
-## Benchmarks
+### Evaulation
 
-The models are trained on one NVIDIA GTX TITAN (12G) GPU. `Adam` is used to optimize the model, `lr` is `1e-5`
-for backbone, `1e-3` for generator and `1e-4` for discriminator. all the hyper-parameters are the default values.
+The pre-trained model can be
+found [here](https://drive.google.com/file/d/1nStGuSenq-8eCKG9-jpgTMF6LJ8tw7_a/view?usp=sharing). You can evaluate the
+model by running the command below.
 
-<table>
-<thead>
-  <tr>
-    <th rowspan="3">Backbone</th>
-    <th rowspan="3">Dim</th>
-    <th colspan="4">Sketchy Extended</th>
-    <th colspan="4">TU-Berlin Extended</th>
-    <th rowspan="3">Download</th>
-  </tr>
-  <tr>
-    <td align="center">mAP@200</td>
-    <td align="center">mAP@all</td>
-    <td align="center">P@100</td>
-    <td align="center">P@200</td>
-    <td align="center">mAP@200</td>
-    <td align="center">mAP@all</td>
-    <td align="center">P@100</td>
-    <td align="center">P@200</td>
-  </tr>
-</thead>
-<tbody>
-  <tr>
-    <td align="center">VGG16</td>
-    <td align="center">64</td>
-    <td align="center">53.0</td>
-    <td align="center">38.0</td>
-    <td align="center">50.1</td>
-    <td align="center">46.0</td>
-    <td align="center">54.7</td>
-    <td align="center">37.4</td>
-    <td align="center">52.2</td>
-    <td align="center">49.4</td>
-    <td align="center"><a href="https://pan.baidu.com/s/14lJMIRCMJIIM4QrP_Gbqfg">e8db</a></td>
-  </tr>
-  <tr>
-    <td align="center">VGG16</td>
-    <td align="center">512</td>
-    <td align="center">57.5</td>
-    <td align="center">42.6</td>
-    <td align="center">54.6</td>
-    <td align="center">50.6</td>
-    <td align="center">62.3</td>
-    <td align="center">44.6</td>
-    <td align="center">60.1</td>
-    <td align="center">57.1</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1rdyX8S4J7hHrDk33QHip1A">uiv4</a></td>
-  </tr>
-  <tr>
-    <td align="center">VGG16</td>
-    <td align="center">4096</td>
-    <td align="center">58.6</td>
-    <td align="center">44.4</td>
-    <td align="center">56.0</td>
-    <td align="center">51.9</td>
-    <td align="center">64.3</td>
-    <td align="center">47.6</td>
-    <td align="center">62.5</td>
-    <td align="center">59.7</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1z30aDG-ra0owr2P59SnpZA">mb9f</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">128</td>
-    <td align="center">62.6</td>
-    <td align="center">48.7</td>
-    <td align="center">60.4</td>
-    <td align="center">56.4</td>
-    <td align="center">61.2</td>
-    <td align="center">46.2</td>
-    <td align="center">59.4</td>
-    <td align="center">57.6</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1aK2xiSPZRPXuORoH-8-aoQ">c7h4</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">512</td>
-    <td align="center">66.2</td>
-    <td align="center">53.2</td>
-    <td align="center">63.9</td>
-    <td align="center">60.1</td>
-    <td align="center">64.8</td>
-    <td align="center">50.3</td>
-    <td align="center">63.0</td>
-    <td align="center">61.1</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1N7iYhbj6GBQ3byRPoekFHA">mhmm</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">2048</td>
-    <td align="center">66.6</td>
-    <td align="center">53.6</td>
-    <td align="center">64.5</td>
-    <td align="center">60.7</td>
-    <td align="center">65.6</td>
-    <td align="center">53.7</td>
-    <td align="center">64.2</td>
-    <td align="center">62.7</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1unfflapyOiRvqEbYMZH-gg">5vcy</a></td>
-  </tr>
-</tbody>
-</table>
+~~~~
+$ bash run_eval.sh
+~~~~
 
-## Results
+## References
 
-![vis](result/vis.png)
+We note that this repo was built upon our previous model 'Background Suppression Network for Weakly-supervised Temporal
+Action Localization '. (AAAI
+2020) [[paper](https://arxiv.org/abs/1911.09963)] [[code](https://github.com/Pilhyeon/BaSNet-pytorch)]
+
+We also referenced the repos below for the code.
+
+* [STPN](https://github.com/bellos1203/STPN)
+* [ActivityNet](https://github.com/activitynet/ActivityNet)
+
+## Citation
+
+If you find this code useful, please cite our paper.
+
+~~~~
+@inproceedings{lee2021WTAL-Uncertainty,
+  title={Weakly-supervised Temporal Action Localization by Uncertainty Modeling},
+  author={Pilhyeon Lee and Jinglu Wang and Yan Lu and Hyeran Byun},
+  booktitle={The 35th AAAI Conference on Artificial Intelligence},
+  pages={1854--1862},
+  year={2021}
+}
+~~~~
+
+## Contact
+
+If you have any question or comment, please contact the first author of the paper - Pilhyeon Lee (lph1114@yonsei.ac.kr).

@@ -1,126 +1,136 @@
-import glob
-import os
 import random
 
-from PIL import Image
-from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator, precision_at_k
-from torch.utils.data.dataset import Dataset
-from torchvision import transforms
-from torchvision.transforms import InterpolationMode
+import numpy as np
+import torch
+import torch.nn as nn
+from scipy.interpolate import interp1d
+
+import config
 
 
-def get_transform(split='train'):
-    if split == 'train':
-        return transforms.Compose([
-            transforms.Resize((224, 224), interpolation=InterpolationMode.BILINEAR),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    else:
-        return transforms.Compose([
-            transforms.Resize((224, 224), interpolation=InterpolationMode.BILINEAR),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+def upgrade_resolution(arr, scale):
+    x = np.arange(0, arr.shape[0])
+    f = interp1d(x, arr, kind='linear', axis=0, fill_value='extrapolate')
+    scale_x = np.arange(0, arr.shape[0], 1 / scale)
+    up_scale = f(scale_x)
+    return up_scale
 
 
-class DomainDataset(Dataset):
-    def __init__(self, data_root, data_name, split='train'):
-        super(DomainDataset, self).__init__()
+def get_proposal_oic(tList, wtcam, final_score, c_pred, scale, v_len, sampling_frames, num_segments, _lambda=0.25,
+                     gamma=0.2):
+    t_factor = (16 * v_len) / (scale * num_segments * sampling_frames)
+    temp = []
+    for i in range(len(tList)):
+        c_temp = []
+        temp_list = np.array(tList[i])[0]
+        if temp_list.any():
+            grouped_temp_list = grouping(temp_list)
+            for j in range(len(grouped_temp_list)):
+                if len(grouped_temp_list[j]) < 2:
+                    continue
 
-        images = []
-        for classes in os.listdir(os.path.join(data_root, data_name, split, 'sketch')):
-            sketches = glob.glob(os.path.join(data_root, data_name, split, 'sketch', str(classes), '*.jpg'))
-            photos = glob.glob(os.path.join(data_root, data_name, split, 'photo', str(classes), '*.jpg'))
-            # only consider the classes which photo images >= 400 for tuberlin dataset
-            if len(photos) < 400 and data_name == 'tuberlin' and split == 'val':
-                pass
-            else:
-                images += sketches
-                # only append sketches for train
-                if split == 'val':
-                    images += photos
-        self.images = sorted(images)
-        self.transform = get_transform(split)
+                inner_score = np.mean(wtcam[grouped_temp_list[j], i, 0])
 
-        self.domains, self.labels, self.classes = [], [], {}
-        i = 0
-        for img in self.images:
-            domain, label = os.path.dirname(img).split('/')[-2:]
-            self.domains.append(0 if domain == 'photo' else 1)
-            if label not in self.classes:
-                self.classes[label] = i
-                i += 1
-            self.labels.append(self.classes[label])
-        # store photos for each class to easy sample for sketch in training period
-        if split == 'train':
-            self.refs = {}
-            for key, value in self.classes.items():
-                self.refs[value] = glob.glob(os.path.join(data_root, data_name, split, 'photo', key, '*.jpg'))
+                len_proposal = len(grouped_temp_list[j])
+                outer_s = max(0, int(grouped_temp_list[j][0] - _lambda * len_proposal))
+                outer_e = min(int(wtcam.shape[0] - 1), int(grouped_temp_list[j][-1] + _lambda * len_proposal))
 
-        self.split = split
+                outer_temp_list = list(range(outer_s, int(grouped_temp_list[j][0]))) + list(
+                    range(int(grouped_temp_list[j][-1] + 1), outer_e + 1))
 
-    def __getitem__(self, index):
-        img = Image.open(self.images[index])
-        img = self.transform(img)
-        label = self.labels[index]
-        if self.split == 'val':
-            domain = self.domains[index]
-            return img, domain, label
-        else:
-            ref = Image.open(random.choice(self.refs[label]))
-            ref = self.transform(ref)
-            return img, ref, label
+                if len(outer_temp_list) == 0:
+                    outer_score = 0
+                else:
+                    outer_score = np.mean(wtcam[outer_temp_list, i, 0])
 
-    def __len__(self):
-        return len(self.images)
+                c_score = inner_score - outer_score + gamma * final_score[c_pred[i]]
+                t_start = grouped_temp_list[j][0] * t_factor
+                t_end = (grouped_temp_list[j][-1] + 1) * t_factor
+                c_temp.append([c_pred[i], c_score, t_start, t_end])
+            temp.append(c_temp)
+    return temp
 
 
-class MetricCalculator(AccuracyCalculator):
-    def calculate_precision_at_100(self, knn_labels, query_labels, **kwargs):
-        return precision_at_k(knn_labels, query_labels[:, None], 100, self.avg_of_avgs, self.label_comparison_fn)
-
-    def calculate_precision_at_200(self, knn_labels, query_labels, **kwargs):
-        return precision_at_k(knn_labels, query_labels[:, None], 200, self.avg_of_avgs, self.label_comparison_fn)
-
-    def requires_knn(self):
-        return super().requires_knn() + ["precision_at_100", "precision_at_200"]
-
-
-def compute_metric(vectors, domains, labels):
-    calculator_200 = MetricCalculator(include=['mean_average_precision', 'precision_at_100', 'precision_at_200'], k=200)
-    calculator_all = MetricCalculator(include=['mean_average_precision'])
-    acc = {}
-
-    photo_vectors = vectors[domains == 0]
-    sketch_vectors = vectors[domains == 1]
-    photo_labels = labels[domains == 0]
-    sketch_labels = labels[domains == 1]
-    map_200 = calculator_200.get_accuracy(sketch_vectors, photo_vectors, sketch_labels, photo_labels, False)
-    map_all = calculator_all.get_accuracy(sketch_vectors, photo_vectors, sketch_labels, photo_labels, False)
-
-    acc['P@100'] = map_200['precision_at_100']
-    acc['P@200'] = map_200['precision_at_200']
-    acc['mAP@200'] = map_200['mean_average_precision']
-    acc['mAP@all'] = map_all['mean_average_precision']
-    # the mean value is chosen as the representative of precise
-    acc['precise'] = (acc['P@100'] + acc['P@200'] + acc['mAP@200'] + acc['mAP@all']) / 4
-    return acc
+def result2json(result):
+    result_file = []
+    for i in range(len(result)):
+        for j in range(len(result[i])):
+            line = {'label': config.class_dict[result[i][j][0]], 'score': result[i][j][1],
+                    'segment': [result[i][j][2], result[i][j][3]]}
+            result_file.append(line)
+    return result_file
 
 
-if __name__ == '__main__':
-    import json
-    import shutil
+def grouping(arr):
+    return np.split(arr, np.where(np.diff(arr) != 1)[0] + 1)
 
-    keys = []
-    with open('/home/rh/Downloads/activitynet/activity_net.v1-3.min.json', 'r') as load_f:
-        load_dict = json.load(load_f)
-        for key, value in load_dict['database'].items():
-            video_name = key
-            video_split = value['subset']
-            if video_split == 'training':
-                keys.append(video_name)
-    videos = glob.glob('/home/rh/Downloads/activitynet/v1-3/train_val/*')
-    names = [os.path.basename(f).split('.')[0][2:] for f in videos]
-    for name, path in zip(names, videos):
-        if name in keys:
-            shutil.move(path, '/home/rh/Downloads/activitynet/v1-3/train/')
+
+def save_best_record_thumos(test_info, file_path):
+    fo = open(file_path, "w")
+    fo.write("Step: {}\n".format(test_info["step"][-1]))
+    fo.write("Test_acc: {:.4f}\n".format(test_info["test_acc"][-1]))
+    fo.write("average_mAP: {:.4f}\n".format(test_info["average_mAP"][-1]))
+
+    tIoU_thresh = np.linspace(0.1, 0.7, 7)
+    for i in range(len(tIoU_thresh)):
+        fo.write("mAP@{:.1f}: {:.4f}\n".format(tIoU_thresh[i], test_info["mAP@{:.1f}".format(tIoU_thresh[i])][-1]))
+
+    fo.close()
+
+
+def minmax_norm(act_map, min_val=None, max_val=None):
+    if min_val is None or max_val is None:
+        relu = nn.ReLU()
+        max_val = relu(torch.max(act_map, dim=1)[0])
+        min_val = relu(torch.min(act_map, dim=1)[0])
+
+    delta = max_val - min_val
+    delta[delta <= 0] = 1
+    ret = (act_map - min_val) / delta
+
+    ret[ret > 1] = 1
+    ret[ret < 0] = 0
+
+    return ret
+
+
+def nms(proposals, thresh):
+    proposals = np.array(proposals)
+    x1 = proposals[:, 2]
+    x2 = proposals[:, 3]
+    scores = proposals[:, 1]
+
+    areas = x2 - x1 + 1
+    order = scores.argsort()[::-1]
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(proposals[i].tolist())
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+
+        inter = np.maximum(0.0, xx2 - xx1 + 1)
+
+        iou = inter / (areas[i] + areas[order[1:]] - inter)
+
+        inds = np.where(iou < thresh)[0]
+        order = order[inds + 1]
+
+    return keep
+
+
+def set_seed(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+def save_config(config, file_path):
+    fo = open(file_path, "w")
+    fo.write("Configurtaions:\n")
+    fo.write(str(config))
+    fo.close()

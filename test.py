@@ -1,60 +1,156 @@
-import argparse
+import json
 import os
-import shutil
 
+import numpy as np
 import torch
-from PIL import Image, ImageDraw
 
-from utils import DomainDataset
+import utils
+from eval.eval_detection import ANETdetection
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Test Model')
-    parser.add_argument('--data_root', default='/data', type=str, help='Datasets root path')
-    parser.add_argument('--query_name', default='/data/sketchy/val/sketch/cow/n01887787_591-14.jpg', type=str,
-                        help='Query image name')
-    parser.add_argument('--data_base', default='result/sketchy_resnet50_2048_vectors.pth', type=str,
-                        help='Queried database')
-    parser.add_argument('--num', default=4, type=int, help='Retrieval number')
-    parser.add_argument('--save_root', default='result', type=str, help='Result saved root path')
 
-    opt = parser.parse_args()
+def test(net, config, logger, test_loader, test_info, step, model_file=None):
+    with torch.no_grad():
+        net.eval()
 
-    data_root, query_name, data_base, retrieval_num = opt.data_root, opt.query_name, opt.data_base, opt.num
-    save_root, data_name = opt.save_root, data_base.split('/')[-1].split('_')[0]
+        if model_file is not None:
+            net.load_state_dict(torch.load(model_file))
 
-    vectors = torch.load(data_base)
-    val_data = DomainDataset(data_root, data_name, split='val')
+        final_res = {}
+        final_res['version'] = 'VERSION 1.3'
+        final_res['results'] = {}
+        final_res['external_data'] = {'used': True, 'details': 'Features from I3D Network'}
 
-    if query_name not in val_data.images:
-        raise FileNotFoundError('{} not found'.format(query_name))
-    query_index = val_data.images.index(query_name)
-    query_image = Image.open(query_name).resize((224, 224), resample=Image.BILINEAR)
-    query_label = val_data.labels[query_index]
-    query_feature = vectors[query_index]
+        num_correct = 0.
+        num_total = 0.
 
-    gallery_images, gallery_labels = [], []
-    for i, domain in enumerate(val_data.domains):
-        if domain == 0:
-            gallery_images.append(val_data.images[i])
-            gallery_labels.append(val_data.labels[i])
-    gallery_features = vectors[torch.tensor(val_data.domains) == 0]
+        load_iter = iter(test_loader)
 
-    sim_matrix = query_feature.unsqueeze(0).mm(gallery_features.t()).squeeze()
-    idx = sim_matrix.topk(k=retrieval_num, dim=-1)[1]
+        for i in range(len(test_loader.dataset)):
 
-    result_path = '{}/{}'.format(save_root, query_name.split('/')[-1].split('.')[0])
-    if os.path.exists(result_path):
-        shutil.rmtree(result_path)
-    os.mkdir(result_path)
-    query_image.save('{}/query.jpg'.format(result_path))
-    for num, index in enumerate(idx):
-        retrieval_image = Image.open(gallery_images[index.item()]).resize((224, 224), resample=Image.BILINEAR)
-        draw = ImageDraw.Draw(retrieval_image)
-        retrieval_label = gallery_labels[index.item()]
-        retrieval_status = retrieval_label == query_label
-        retrieval_sim = sim_matrix[index.item()].item()
-        if retrieval_status:
-            draw.rectangle((0, 0, 223, 223), outline='green', width=8)
-        else:
-            draw.rectangle((0, 0, 223, 223), outline='red', width=8)
-        retrieval_image.save('{}/retrieval_{}_{}.jpg'.format(result_path, num + 1, '%.4f' % retrieval_sim))
+            _data, _label, _, vid_name, vid_num_seg = next(load_iter)
+
+            _data = _data.cuda()
+            _label = _label.cuda()
+
+            vid_num_seg = vid_num_seg[0].cpu().item()
+            num_segments = _data.shape[1]
+
+            score_act, _, feat_act, feat_bkg, features, cas_softmax = net(_data)
+
+            feat_magnitudes_act = torch.mean(torch.norm(feat_act, dim=2), dim=1)
+            feat_magnitudes_bkg = torch.mean(torch.norm(feat_bkg, dim=2), dim=1)
+
+            label_np = _label.cpu().data.numpy()
+            score_np = score_act[0].cpu().data.numpy()
+
+            pred_np = np.zeros_like(score_np)
+            pred_np[np.where(score_np < config.class_thresh)] = 0
+            pred_np[np.where(score_np >= config.class_thresh)] = 1
+
+            correct_pred = np.sum(label_np == pred_np, axis=1)
+
+            num_correct += np.sum((correct_pred == config.num_classes).astype(np.float32))
+            num_total += correct_pred.shape[0]
+
+            feat_magnitudes = torch.norm(features, p=2, dim=2)
+
+            feat_magnitudes = utils.minmax_norm(feat_magnitudes, max_val=feat_magnitudes_act,
+                                                min_val=feat_magnitudes_bkg)
+            feat_magnitudes = feat_magnitudes.repeat((config.num_classes, 1, 1)).permute(1, 2, 0)
+
+            cas = utils.minmax_norm(cas_softmax * feat_magnitudes)
+
+            pred = np.where(score_np >= config.class_thresh)[0]
+
+            if len(pred) == 0:
+                pred = np.array([np.argmax(score_np)])
+
+            cas_pred = cas[0].cpu().numpy()[:, pred]
+            cas_pred = np.reshape(cas_pred, (num_segments, -1, 1))
+
+            cas_pred = utils.upgrade_resolution(cas_pred, config.scale)
+
+            proposal_dict = {}
+
+            feat_magnitudes_np = feat_magnitudes[0].cpu().data.numpy()[:, pred]
+            feat_magnitudes_np = np.reshape(feat_magnitudes_np, (num_segments, -1, 1))
+            feat_magnitudes_np = utils.upgrade_resolution(feat_magnitudes_np, config.scale)
+
+            for i in range(len(config.act_thresh_cas)):
+                cas_temp = cas_pred.copy()
+
+                zero_location = np.where(cas_temp[:, :, 0] < config.act_thresh_cas[i])
+                cas_temp[zero_location] = 0
+
+                seg_list = []
+                for c in range(len(pred)):
+                    pos = np.where(cas_temp[:, c, 0] > 0)
+                    seg_list.append(pos)
+
+                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
+                                                   vid_num_seg, config.feature_fps, num_segments)
+
+                for i in range(len(proposals)):
+                    class_id = proposals[i][0][0]
+
+                    if class_id not in proposal_dict.keys():
+                        proposal_dict[class_id] = []
+
+                    proposal_dict[class_id] += proposals[i]
+
+            for i in range(len(config.act_thresh_magnitudes)):
+                cas_temp = cas_pred.copy()
+
+                feat_magnitudes_np_temp = feat_magnitudes_np.copy()
+
+                zero_location = np.where(feat_magnitudes_np_temp[:, :, 0] < config.act_thresh_magnitudes[i])
+                feat_magnitudes_np_temp[zero_location] = 0
+
+                seg_list = []
+                for c in range(len(pred)):
+                    pos = np.where(feat_magnitudes_np_temp[:, c, 0] > 0)
+                    seg_list.append(pos)
+
+                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
+                                                   vid_num_seg, config.feature_fps, num_segments)
+
+                for i in range(len(proposals)):
+                    class_id = proposals[i][0][0]
+
+                    if class_id not in proposal_dict.keys():
+                        proposal_dict[class_id] = []
+
+                    proposal_dict[class_id] += proposals[i]
+
+            final_proposals = []
+            for class_id in proposal_dict.keys():
+                final_proposals.append(utils.nms(proposal_dict[class_id], 0.6))
+
+            final_res['results'][vid_name[0]] = utils.result2json(final_proposals)
+
+        test_acc = num_correct / num_total
+
+        json_path = os.path.join(config.output_path, 'result.json')
+        with open(json_path, 'w') as f:
+            json.dump(final_res, f)
+            f.close()
+
+        tIoU_thresh = np.linspace(0.1, 0.7, 7)
+        anet_detection = ANETdetection(config.gt_path, json_path,
+                                       subset='test', tiou_thresholds=tIoU_thresh,
+                                       verbose=False, check_status=False)
+        mAP, average_mAP = anet_detection.evaluate()
+
+        logger.log_value('Test accuracy', test_acc, step)
+
+        for i in range(tIoU_thresh.shape[0]):
+            logger.log_value('mAP@{:.1f}'.format(tIoU_thresh[i]), mAP[i], step)
+
+        logger.log_value('Average mAP', average_mAP, step)
+
+        test_info["step"].append(step)
+        test_info["test_acc"].append(test_acc)
+        test_info["average_mAP"].append(average_mAP)
+
+        for i in range(tIoU_thresh.shape[0]):
+            test_info["mAP@{:.1f}".format(tIoU_thresh[i])].append(mAP[i])
