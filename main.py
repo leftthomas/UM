@@ -1,11 +1,5 @@
-from options import *
-from config import *
-from train import *
-from test import *
-from model import *
 from tensorboard_logger import Logger
-from thumos_features import *
-from tensorboard_logger import Logger
+from tqdm import tqdm
 
 from config import *
 from model import *
@@ -16,8 +10,6 @@ from train import *
 
 if __name__ == "__main__":
     args = parse_args()
-    if args.debug:
-        pdb.set_trace()
 
     config = Config(args)
     worker_init_fn = None
