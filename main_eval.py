@@ -1,10 +1,10 @@
 from tensorboard_logger import Logger
 
 from config import *
+from dataset import *
 from model import *
 from options import *
 from test import *
-from thumos import *
 
 if __name__ == "__main__":
     args = parse_args()
@@ -22,10 +22,10 @@ if __name__ == "__main__":
     net = net.cuda()
 
     test_loader = data.DataLoader(
-        Thumos14(data_path=config.data_path, mode='test',
-                 modal=config.modal, feature_fps=config.feature_fps,
-                 num_segments=config.num_segments, supervision='weak',
-                 seed=config.seed, sampling='uniform'),
+        VideoDataset(data_path=config.data_path, mode='test',
+                     modal=config.modal, fps=config.feature_fps,
+                     num_segments=config.num_segments, supervision='weak',
+                     seed=config.seed, sampling='uniform'),
         batch_size=1,
         shuffle=False, num_workers=config.num_workers,
         worker_init_fn=worker_init_fn)

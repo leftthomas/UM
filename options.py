@@ -1,6 +1,10 @@
 import argparse
 import os
+import random
 import shutil
+
+import numpy as np
+import torch
 
 
 def parse_args():
@@ -39,5 +43,12 @@ def init_args(args):
 
     if not os.path.exists(args.output_path):
         os.makedirs(args.output_path)
+
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    random.seed(args.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     return args

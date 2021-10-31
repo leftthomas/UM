@@ -88,7 +88,7 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
                     seg_list.append(pos)
 
                 proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
-                                                   vid_num_seg, config.feature_fps, num_segments)
+                                                   vid_num_seg, config.fps, num_segments)
 
                 for i in range(len(proposals)):
                     class_id = proposals[i][0][0]
@@ -112,7 +112,7 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
                     seg_list.append(pos)
 
                 proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
-                                                   vid_num_seg, config.feature_fps, num_segments)
+                                                   vid_num_seg, config.fps, num_segments)
 
                 for i in range(len(proposals)):
                     class_id = proposals[i][0][0]
