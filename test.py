@@ -1,15 +1,17 @@
+import os
+
 import numpy as np
 import torch
-from config import *
+from torch.utils.data import DataLoader
 
 import utils
-from dataset import *
+from dataset import VideoDataset
 from eval.eval_detection import ANETdetection
-from model import *
-from options import *
+from model import Model
+from options import parse_args
 
 
-def test(net, config, logger, test_loader, test_info, step, model_file=None):
+def test(net, config, test_loader, test_info, step, model_file=None):
     with torch.no_grad():
         net.eval()
 
@@ -77,10 +79,10 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
             feat_magnitudes_np = np.reshape(feat_magnitudes_np, (num_segments, -1, 1))
             feat_magnitudes_np = utils.upgrade_resolution(feat_magnitudes_np, config.scale)
 
-            for i in range(len(config.act_thresh_cas)):
+            for i in range(len(config.seg_th)):
                 cas_temp = cas_pred.copy()
 
-                zero_location = np.where(cas_temp[:, :, 0] < config.act_thresh_cas[i])
+                zero_location = np.where(cas_temp[:, :, 0] < config.seg_th[i])
                 cas_temp[zero_location] = 0
 
                 seg_list = []
@@ -160,27 +162,14 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
 if __name__ == "__main__":
     args = parse_args()
 
-    config = Config(args)
-    worker_init_fn = None
+    test_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'test', args.num_segments), batch_size=1,
+                             shuffle=False, num_workers=args.num_workers, worker_init_fn=args.worker_init_fn)
 
-    if config.seed >= 0:
-        utils.set_seed(config.seed)
-        worker_init_fn = np.random.seed(config.seed)
-
-    utils.save_config(config, os.path.join(config.output_path, "config.txt"))
-
-    net = Model(config.len_feature, config.num_classes, config.r_act, config.r_bkg)
-    net = net.cuda()
-
-    test_loader = data.DataLoader(
-        VideoDataset(data_path=config.data_path, mode='test', modal=config.modal, fps=config.feature_fps,
-                     num_segments=config.num_segments, supervision='weak',
-                     seed=config.seed, sampling='uniform'), batch_size=1, shuffle=False, num_workers=config.num_workers,
-        worker_init_fn=worker_init_fn)
+    net = Model(args.len_feature, args.num_classes, args.r_act, args.r_bkg).cuda()
 
     test_info = {"step": [], "test_acc": [], "average_mAP": [],
                  "mAP@0.1": [], "mAP@0.2": [], "mAP@0.3": [],
                  "mAP@0.4": [], "mAP@0.5": [], "mAP@0.6": [], "mAP@0.7": []}
 
-    test(net, config, test_loader, test_info, 0, model_file=config.model_file)
-    utils.save_best_record_thumos(test_info, os.path.join(config.output_path, "best_record.txt"))
+    test(net, args, test_loader, test_info, 0, model_file=args.model_file)
+    utils.save_best_record_thumos(test_info, os.path.join(args.output_path, "best_record.txt"))
