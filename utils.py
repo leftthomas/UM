@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 from scipy.interpolate import interp1d
 
-import config
-
 
 def upgrade_resolution(arr, scale):
     x = np.arange(0, arr.shape[0])
@@ -117,10 +115,4 @@ def nms(proposals, thresh):
 
     return keep
 
-
-def save_config(config, file_path):
-    fo = open(file_path, "w")
-    fo.write("Configurtaions:\n")
-    fo.write(str(config))
-    fo.close()
 

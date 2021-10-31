@@ -71,6 +71,7 @@ class VideoDataset(data.Dataset):
         return samples.astype(int)
 
     def uniform_sampling(self, length):
+        # because the length may different as these two line codes, make sure batch size == 1 in test mode
         if length <= self.num_segments:
             return np.arange(length).astype(int)
         else:

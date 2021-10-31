@@ -1,11 +1,12 @@
-import json
-import os
-
 import numpy as np
 import torch
+from config import *
 
 import utils
+from dataset import *
 from eval.eval_detection import ANETdetection
+from model import *
+from options import *
 
 
 def test(net, config, logger, test_loader, test_info, step, model_file=None):
@@ -44,8 +45,8 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
             score_np = score_act[0].cpu().data.numpy()
 
             pred_np = np.zeros_like(score_np)
-            pred_np[np.where(score_np < config.class_thresh)] = 0
-            pred_np[np.where(score_np >= config.class_thresh)] = 1
+            pred_np[np.where(score_np < config.class_th)] = 0
+            pred_np[np.where(score_np >= config.class_th)] = 1
 
             correct_pred = np.sum(label_np == pred_np, axis=1)
 
@@ -60,7 +61,7 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
 
             cas = utils.minmax_norm(cas_softmax * feat_magnitudes)
 
-            pred = np.where(score_np >= config.class_thresh)[0]
+            pred = np.where(score_np >= config.class_th)[0]
 
             if len(pred) == 0:
                 pred = np.array([np.argmax(score_np)])
@@ -154,3 +155,32 @@ def test(net, config, logger, test_loader, test_info, step, model_file=None):
 
         for i in range(tIoU_thresh.shape[0]):
             test_info["mAP@{:.1f}".format(tIoU_thresh[i])].append(mAP[i])
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    config = Config(args)
+    worker_init_fn = None
+
+    if config.seed >= 0:
+        utils.set_seed(config.seed)
+        worker_init_fn = np.random.seed(config.seed)
+
+    utils.save_config(config, os.path.join(config.output_path, "config.txt"))
+
+    net = Model(config.len_feature, config.num_classes, config.r_act, config.r_bkg)
+    net = net.cuda()
+
+    test_loader = data.DataLoader(
+        VideoDataset(data_path=config.data_path, mode='test', modal=config.modal, fps=config.feature_fps,
+                     num_segments=config.num_segments, supervision='weak',
+                     seed=config.seed, sampling='uniform'), batch_size=1, shuffle=False, num_workers=config.num_workers,
+        worker_init_fn=worker_init_fn)
+
+    test_info = {"step": [], "test_acc": [], "average_mAP": [],
+                 "mAP@0.1": [], "mAP@0.2": [], "mAP@0.3": [],
+                 "mAP@0.4": [], "mAP@0.5": [], "mAP@0.6": [], "mAP@0.7": []}
+
+    test(net, config, test_loader, test_info, 0, model_file=config.model_file)
+    utils.save_best_record_thumos(test_info, os.path.join(config.output_path, "best_record.txt"))
