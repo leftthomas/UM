@@ -27,26 +27,26 @@ from [Google Drive](https://drive.google.com/drive/folders/1W2t4UKUkV_9duAsAFWU0
 structure is shown as follows:
 
  ```
-├── thumos14                                            |       ├── activitynet
-   ├── features                                          |         ├── features_1.2
-       ├── val                                           |             ├── train 
-           ├── flow                                      |                 ├── flow    
-               ├── video_validation_0000051.npy          |                     ├── v___dXUJsj3yo.npy
-               └── ...                                   |                     └── ...
-           ├── rgb (same structure as flow)              |                 ├── rgb
-       ├── test                                          |                     ├── v___dXUJsj3yo.npy
-           ├── flow                                      |                     └── ...
-               ├── video_test_0000004.npy                |             ├── val (same structure as tain)
-               └── ...                                   |         ├── features_1.3 (same structure as features_1.2)
-           ├── rgb (same structure as flow)              |         ├── videos
-   ├── videos                                            |             ├── train
-       ├── val                                           |                 ├── v___c8enCfzqw.mp4
-           ├── video_validation_0000051.mp4              |                 └──... 
-           └──...                                        |              ├── val           
-       ├── test                                          |                 ├── v__1vYKA7mNLI.mp4
-           ├──video_test_0000004.mp4                     |                 └──...   
-           └──...                                        |      annotations_1.2.json
-   annotations.json                                      |      annotations_1.3.json
+├── thumos14                                    |  ├── activitynet
+   ├── features                                  |    ├── features_1.2
+       ├── val                                   |        ├── train 
+           ├── flow                              |            ├── flow    
+               ├── video_validation_0000051.npy  |                ├── v___dXUJsj3yo.npy
+               └── ...                           |                └── ...
+           ├── rgb (same structure as flow)      |            ├── rgb
+       ├── test                                  |                ├── v___dXUJsj3yo.npy
+           ├── flow                              |                └── ...
+               ├── video_test_0000004.npy        |        ├── val (same structure as tain)
+               └── ...                           |    ├── features_1.3 (same structure as features_1.2)
+           ├── rgb (same structure as flow)      |    ├── videos
+   ├── videos                                    |        ├── train
+       ├── val                                   |            ├── v___c8enCfzqw.mp4
+           ├── video_validation_0000051.mp4      |            └──... 
+           └──...                                |         ├── val           
+       ├── test                                  |            ├── v__1vYKA7mNLI.mp4
+           ├──video_test_0000004.mp4             |            └──...   
+           └──...                                | annotations_1.2.json
+   annotations.json                              | annotations_1.3.json
 ```
 
 ## Usage
