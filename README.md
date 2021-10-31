@@ -1,7 +1,7 @@
-# MSTP
+# UM
 
-A PyTorch implementation of MSTP based on CVPR 2022 paper
-[Map Sketch to Photo for Zero-Shot Sketch-Based Image Retrieval]().
+A PyTorch implementation of UM based on AAAI 2021 paper
+[Weakly-supervised Temporal Action Localization by Uncertainty Modeling](https://arxiv.org/abs/2006.07006).
 
 ![Network Architecture](result/structure.png)
 
@@ -11,25 +11,7 @@ A PyTorch implementation of MSTP based on CVPR 2022 paper
 - [PyTorch](https://pytorch.org)
 
 ```
-conda install pytorch=1.9.1 torchvision cudatoolkit -c pytorch
-```
-
-- [Pytorch Metric Learning](https://kevinmusgrave.github.io/pytorch-metric-learning/)
-
-```
-pip install pytorch-metric-learning
-```
-
-- [Faiss](https://faiss.ai)
-
-```
-conda install -c pytorch faiss-cpu
-```
-
-- [Timm](https://rwightman.github.io/pytorch-image-models/)
-
-```
-pip install timm
+conda install pytorch=1.10.0 torchvision cudatoolkit=11.3 -c pytorch
 ```
 
 ## Dataset
@@ -45,21 +27,26 @@ from [Google Drive](https://drive.google.com/drive/folders/1W2t4UKUkV_9duAsAFWU0
 structure is shown as follows:
 
  ```
-├──sketchy
-   ├── train
-       ├── sketch
-           ├── airplane
-               ├── n02691156_58-1.jpg
-               └── ...
-           ...
-       ├── photo
-           same structure as sketch
-   ├── val
-      same structure as train
-      ...
-├──tuberlin
-   same structure as sketchy
-   ...
+├── thumos14                                            |       ├── activitynet
+   ├── features                                          |         ├── features_1.2
+       ├── val                                           |             ├── train 
+           ├── flow                                      |                 ├── flow    
+               ├── video_validation_0000051.npy          |                     ├── v___dXUJsj3yo.npy
+               └── ...                                   |                     └── ...
+           ├── rgb (same structure as flow)              |                 ├── rgb
+       ├── test                                          |                     ├── v___dXUJsj3yo.npy
+           ├── flow                                      |                     └── ...
+               ├── video_test_0000004.npy                |             ├── val (same structure as tain)
+               └── ...                                   |         ├── features_1.3 (same structure as features_1.2)
+           ├── rgb (same structure as flow)              |         ├── videos
+   ├── videos                                            |             ├── train
+       ├── val                                           |                 ├── v___c8enCfzqw.mp4
+           ├── video_validation_0000051.mp4              |                 └──... 
+           └──...                                        |              ├── val           
+       ├── test                                          |                 ├── v__1vYKA7mNLI.mp4
+           ├──video_test_0000004.mp4                     |                 └──...   
+           └──...                                        |      annotations_1.2.json
+   annotations.json                                      |      annotations_1.3.json
 ```
 
 ## Usage

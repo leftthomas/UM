@@ -135,15 +135,3 @@ def save_config(config, file_path):
     fo.write(str(config))
     fo.close()
 
-
-if __name__ == '__main__':
-    data = np.load('dataset/THUMOS14/Thumos14-I3D-JOINTFeatures.npy', allow_pickle=True, encoding='bytes')
-    with open('dataset/THUMOS14/split_train.txt', 'r') as f:
-        train = f.readlines()
-    with open('dataset/THUMOS14/split_test.txt', 'r') as f:
-        test = f.readlines()
-    names = train + test
-    for key, value in zip(names, data):
-        split = 'train' if 'validation' in key else 'test'
-        np.save('dataset/THUMOS14/features/{}/rgb/{}.npy'.format(split, key.replace('\n', '')), value[:, :1024])
-        np.save('dataset/THUMOS14/features/{}/flow/{}.npy'.format(split, key.replace('\n', '')), value[:, 1024:])

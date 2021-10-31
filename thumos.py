@@ -9,7 +9,7 @@ import config
 import utils
 
 
-class ThumosFeature(data.Dataset):
+class Thumos14(data.Dataset):
     def __init__(self, data_path, mode, modal, feature_fps, num_segments, sampling, seed=-1, supervision='weak'):
         if seed >= 0:
             utils.set_seed(seed)
