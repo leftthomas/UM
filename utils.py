@@ -112,16 +112,13 @@ def grouping(arr):
     return np.split(arr, np.where(np.diff(arr) != 1)[0] + 1)
 
 
-def save_best_record_thumos(test_info, file_path):
-    fo = open(file_path, "w")
-    fo.write("Test_acc: {:.4f}\n".format(test_info["test_acc"][-1]))
-    fo.write("average_mAP: {:.4f}\n".format(test_info["mAP@AVG"][-1]))
-
-    tIoU_thresh = np.linspace(0.1, 0.7, 7)
-    for i in range(len(tIoU_thresh)):
-        fo.write("mAP@{:.1f}: {:.4f}\n".format(tIoU_thresh[i], test_info["mAP@{:.1f}".format(tIoU_thresh[i])][-1]))
-
-    fo.close()
+def save_best_record(test_info, file_path):
+    with open(file_path, 'w') as fo:
+        fo.write("Test Acc: {:.3f}\n".format(test_info["test_acc"][-1]))
+        fo.write("mAP@AVG: {:.3f}\n".format(test_info["mAP@AVG"][-1]))
+        tIoU_thresh = np.linspace(0.1, 0.7, 7)
+        for i in range(len(tIoU_thresh)):
+            fo.write("mAP@{:.1f}: {:.3f}\n".format(tIoU_thresh[i], test_info["mAP@{:.1f}".format(tIoU_thresh[i])][-1]))
 
 
 def minmax_norm(act_map, min_val=None, max_val=None):
@@ -139,30 +136,5 @@ def minmax_norm(act_map, min_val=None, max_val=None):
 
     return ret
 
-
-def nms(proposals, thresh):
-    proposals = np.array(proposals)
-    x1 = proposals[:, 2]
-    x2 = proposals[:, 3]
-    scores = proposals[:, 1]
-
-    areas = x2 - x1 + 1
-    order = scores.argsort()[::-1]
-
-    keep = []
-    while order.size > 0:
-        i = order[0]
-        keep.append(proposals[i].tolist())
-        xx1 = np.maximum(x1[i], x1[order[1:]])
-        xx2 = np.minimum(x2[i], x2[order[1:]])
-
-        inter = np.maximum(0.0, xx2 - xx1 + 1)
-
-        iou = inter / (areas[i] + areas[order[1:]] - inter)
-
-        inds = np.where(iou < thresh)[0]
-        order = order[inds + 1]
-
-    return keep
 
 

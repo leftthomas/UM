@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch
 from mmaction.core.evaluation import ActivityNetLocalization
+from mmaction.localization import temporal_nms
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -36,15 +37,14 @@ def test(network, config, data_loader, metric_info):
 
             correct_pred = np.sum(label_np == pred_np, axis=1)
 
-            num_correct += np.sum((correct_pred == len(data_loader.dataset.class_name_to_idx)).astype(np.float32))
+            num_correct += np.sum((correct_pred == network.num_classes).astype(np.float32))
             num_total += correct_pred.shape[0]
 
             feat_magnitudes = torch.norm(features, p=2, dim=2)
 
             feat_magnitudes = utils.minmax_norm(feat_magnitudes, max_val=feat_magnitudes_act,
                                                 min_val=feat_magnitudes_bkg)
-            feat_magnitudes = feat_magnitudes.repeat((len(data_loader.dataset.class_name_to_idx), 1, 1)).permute(1, 2,
-                                                                                                                 0)
+            feat_magnitudes = feat_magnitudes.repeat((network.num_classes, 1, 1)).permute(1, 2, 0)
 
             cas = utils.minmax_norm(cas_softmax * feat_magnitudes)
 
@@ -112,7 +112,11 @@ def test(network, config, data_loader, metric_info):
 
             final_proposals = []
             for class_id in proposal_dict.keys():
-                final_proposals.append(utils.nms(proposal_dict[class_id], 0.6))
+                c = np.array(proposal_dict[class_id])[:, 1:]
+                d = np.roll(c, -1, axis=-1)
+                b = temporal_nms(d, 0.6)
+                b = np.concatenate((np.array([[class_id]] * b.shape[0]), np.roll(b, 1, axis=-1)), axis=-1).tolist()
+                final_proposals.append(b)
 
             results['results'][video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
 
@@ -129,12 +133,12 @@ def test(network, config, data_loader, metric_info):
         anet_detection = ActivityNetLocalization(gt_path, pred_path, tiou_thresholds=iou_thresh, verbose=False)
         mAP, average_mAP = anet_detection.evaluate()
 
-        print('Test accuracy: {}'.format(test_acc))
+        print('Test accuracy: {:.3f}'.format(test_acc))
 
         for i in range(iou_thresh.shape[0]):
-            print('mAP@{:.1f}: {}'.format(iou_thresh[i], mAP[i]))
+            print('mAP@{:.1f}: {:.3f}'.format(iou_thresh[i], mAP[i]))
 
-        print('mAP@AVG: {}'.format(average_mAP))
+        print('mAP@AVG: {:.3f}'.format(average_mAP))
 
         metric_info['test_acc'].append(test_acc)
         metric_info['mAP@AVG'].append(average_mAP)
@@ -157,4 +161,4 @@ if __name__ == "__main__":
         test_info = {'test_acc': [], 'mAP@AVG': [], 'mAP@0.5': [], 'mAP@0.75': [], 'mAP@0.95': []}
 
     test(net, args, test_loader, test_info)
-    utils.save_best_record_thumos(test_info, os.path.join(args.save_path, 'best_record.txt'))
+    utils.save_best_record(test_info, os.path.join(args.save_path, '{}_record.txt'.format(args.data_name)))
