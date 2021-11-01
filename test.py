@@ -7,8 +7,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import utils
-from dataset import VideoDataset
-from eval_detection import ANETdetection
+from dataset import VideoDataset, LocalizationEvaluation
 from model import Model
 
 
@@ -18,10 +17,7 @@ def test(network, config, data_loader, metric_info):
         network = network.cuda()
         network.eval()
 
-        results = {'version': 'VERSION 1.3', 'results': {},
-                   'external_data': {'used': True, 'details': 'Features from I3D Network'}}
-        num_correct, num_total = 0, 0
-
+        results, num_correct, num_total = {}, 0, 0
         for feat, label, video_name, num_seg, annotation in tqdm(data_loader):
             feat, label, video_name = feat.cuda(), label.cuda(), video_name[0]
             num_seg, num_segments = num_seg.item(), feat.shape[1]
@@ -117,18 +113,19 @@ def test(network, config, data_loader, metric_info):
             for class_id in proposal_dict.keys():
                 final_proposals.append(utils.nms(proposal_dict[class_id], 0.6))
 
-            results['results'][video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
+            results[video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
 
         test_acc = num_correct / num_total
 
-        json_path = os.path.join(config.save_path, 'result.json')
-        with open(json_path, 'w') as f:
+        gt_path = os.path.join(config.save_path, '{}_gt.json'.format(config.data_name))
+        with open(gt_path, 'w') as f:
+            json.dump(data_loader.dataset.annotations, f)
+        pred_path = os.path.join(config.save_path, '{}_pred.json'.format(config.data_name))
+        with open(pred_path, 'w') as f:
             json.dump(results, f)
 
         iou_thresh = np.linspace(0.1, 0.7, 7)
-        anet_detection = ANETdetection('/data/thumos14/annotations.json', json_path,
-                                       subset='test', tiou_thresholds=iou_thresh,
-                                       verbose=False, check_status=False)
+        anet_detection = LocalizationEvaluation(gt_path, pred_path, tiou_thresholds=iou_thresh, verbose=False)
         mAP, average_mAP = anet_detection.evaluate()
 
         print('Test accuracy: {}'.format(test_acc))

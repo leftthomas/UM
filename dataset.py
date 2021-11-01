@@ -4,10 +4,11 @@ import os
 
 import numpy as np
 import torch
-import torch.utils.data as data
+from mmaction.core.evaluation import ActivityNetLocalization
+from torch.utils.data import Dataset
 
 
-class VideoDataset(data.Dataset):
+class VideoDataset(Dataset):
     def __init__(self, data_path, data_name, mode, num_segments):
 
         self.data_name, self.mode, self.num_segments = data_name, mode, num_segments
@@ -29,10 +30,11 @@ class VideoDataset(data.Dataset):
 
         # prepare labels
         assert len(self.rgb) == len(self.flow)
-        self.annotations, classes, self.class_name_to_idx, self.idx_to_class_name = [], set(), {}, {}
+        self.annotations, classes, self.class_name_to_idx, self.idx_to_class_name = {}, set(), {}, {}
         for key in self.rgb:
-            value = annotations[os.path.basename(key).split('.')[0]]['annotations']
-            self.annotations.append(value)
+            video_name = os.path.basename(key).split('.')[0]
+            value = annotations[video_name]['annotations']
+            self.annotations[video_name] = value
             for annotation in value:
                 classes.add(annotation['label'])
         for i, key in enumerate(sorted(classes)):
@@ -43,8 +45,9 @@ class VideoDataset(data.Dataset):
         return len(self.rgb)
 
     def __getitem__(self, index):
-        rgb, flow, annotation = np.load(self.rgb[index]), np.load(self.flow[index]), self.annotations[index]
+        rgb, flow = np.load(self.rgb[index]), np.load(self.flow[index])
         video_name, num_seg = os.path.basename(self.rgb[index]).split('.')[0], rgb.shape[0]
+        annotation = self.annotations[video_name]
         sample_idx = self.random_sampling(num_seg) if self.mode == 'train' else self.uniform_sampling(num_seg)
         rgb, flow = torch.from_numpy(rgb[sample_idx]), torch.from_numpy(flow[sample_idx])
 
@@ -77,3 +80,54 @@ class VideoDataset(data.Dataset):
             return np.arange(length).astype(int)
         else:
             return np.floor(np.arange(self.num_segments) * length / self.num_segments).astype(int)
+
+
+class LocalizationEvaluation(ActivityNetLocalization):
+    @staticmethod
+    def _import_ground_truth(ground_truth_filename):
+        """Read ground truth file and return the ground truth instances and the
+        activity classes.
+
+        Args:
+            ground_truth_filename (str): Full path to the ground truth json file.
+
+        Returns:
+            tuple[list, dict]: (ground_truth, activity_index).
+                ground_truth contains the ground truth instances, which is in a
+                    dict format.
+                activity_index contains classes index.
+        """
+        with open(ground_truth_filename, 'r') as f:
+            data = json.load(f)
+        activity_index, class_idx, ground_truth = {}, 0, []
+        for video_id, video_info in data.items():
+            for anno in video_info:
+                if anno['label'] not in activity_index:
+                    activity_index[anno['label']] = class_idx
+                    class_idx += 1
+                ground_truth_item = {'video-id': video_id, 'label': activity_index[anno['label']],
+                                     't-start': float(anno['segment'][0]), 't-end': float(anno['segment'][1])}
+                ground_truth.append(ground_truth_item)
+
+        return ground_truth, activity_index
+
+    def _import_prediction(self, prediction_filename):
+        """Read prediction file and return the prediction instances.
+
+        Args:
+            prediction_filename (str): Full path to the prediction json file.
+
+        Returns:
+            List: List containing the prediction instances (dictionaries).
+        """
+        with open(prediction_filename, 'r') as f:
+            data = json.load(f)
+        prediction = []
+        for video_id, video_info in data.items():
+            for result in video_info:
+                prediction_item = {'video-id': video_id, 'label': self.activity_index[result['label']],
+                                   't-start': float(result['segment'][0]), 't-end': float(result['segment'][1]),
+                                   'score': result['score']}
+                prediction.append(prediction_item)
+
+        return prediction
