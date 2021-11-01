@@ -3,11 +3,12 @@ import os
 
 import numpy as np
 import torch
+from mmaction.core.evaluation import ActivityNetLocalization
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import utils
-from dataset import VideoDataset, LocalizationEvaluation
+from dataset import VideoDataset
 from model import Model
 
 
@@ -17,7 +18,7 @@ def test(network, config, data_loader, metric_info):
         network = network.cuda()
         network.eval()
 
-        results, num_correct, num_total = {}, 0, 0
+        results, num_correct, num_total = {'results': {}}, 0, 0
         for feat, label, video_name, num_seg, annotation in tqdm(data_loader):
             feat, label, video_name = feat.cuda(), label.cuda(), video_name[0]
             num_seg, num_segments = num_seg.item(), feat.shape[1]
@@ -113,7 +114,7 @@ def test(network, config, data_loader, metric_info):
             for class_id in proposal_dict.keys():
                 final_proposals.append(utils.nms(proposal_dict[class_id], 0.6))
 
-            results[video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
+            results['results'][video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
 
         test_acc = num_correct / num_total
 
@@ -125,7 +126,7 @@ def test(network, config, data_loader, metric_info):
             json.dump(results, f)
 
         iou_thresh = np.linspace(0.1, 0.7, 7)
-        anet_detection = LocalizationEvaluation(gt_path, pred_path, tiou_thresholds=iou_thresh, verbose=False)
+        anet_detection = ActivityNetLocalization(gt_path, pred_path, tiou_thresholds=iou_thresh, verbose=False)
         mAP, average_mAP = anet_detection.evaluate()
 
         print('Test accuracy: {}'.format(test_acc))

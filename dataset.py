@@ -4,7 +4,6 @@ import os
 
 import numpy as np
 import torch
-from mmaction.core.evaluation import ActivityNetLocalization
 from torch.utils.data import Dataset
 
 
@@ -33,9 +32,10 @@ class VideoDataset(Dataset):
         self.annotations, classes, self.class_name_to_idx, self.idx_to_class_name = {}, set(), {}, {}
         for key in self.rgb:
             video_name = os.path.basename(key).split('.')[0]
-            value = annotations[video_name]['annotations']
-            self.annotations[video_name] = value
-            for annotation in value:
+            value = annotations[video_name]
+            # the prefix is added to compatible with ActivityNetLocalization class
+            self.annotations['d_{}'.format(video_name)] = {'annotations': value['annotations']}
+            for annotation in value['annotations']:
                 classes.add(annotation['label'])
         for i, key in enumerate(sorted(classes)):
             self.class_name_to_idx[key] = i
@@ -47,12 +47,12 @@ class VideoDataset(Dataset):
     def __getitem__(self, index):
         rgb, flow = np.load(self.rgb[index]), np.load(self.flow[index])
         video_name, num_seg = os.path.basename(self.rgb[index]).split('.')[0], rgb.shape[0]
-        annotation = self.annotations[video_name]
+        annotation = self.annotations['d_{}'.format(video_name)]
         sample_idx = self.random_sampling(num_seg) if self.mode == 'train' else self.uniform_sampling(num_seg)
         rgb, flow = torch.from_numpy(rgb[sample_idx]), torch.from_numpy(flow[sample_idx])
 
         label = torch.zeros(len(self.class_name_to_idx))
-        for item in annotation:
+        for item in annotation['annotations']:
             label[self.class_name_to_idx[item['label']]] = 1
         feat = torch.cat((rgb, flow), dim=-1)
         return feat, label, video_name, num_seg, annotation
@@ -81,53 +81,3 @@ class VideoDataset(Dataset):
         else:
             return np.floor(np.arange(self.num_segments) * length / self.num_segments).astype(int)
 
-
-class LocalizationEvaluation(ActivityNetLocalization):
-    @staticmethod
-    def _import_ground_truth(ground_truth_filename):
-        """Read ground truth file and return the ground truth instances and the
-        activity classes.
-
-        Args:
-            ground_truth_filename (str): Full path to the ground truth json file.
-
-        Returns:
-            tuple[list, dict]: (ground_truth, activity_index).
-                ground_truth contains the ground truth instances, which is in a
-                    dict format.
-                activity_index contains classes index.
-        """
-        with open(ground_truth_filename, 'r') as f:
-            data = json.load(f)
-        activity_index, class_idx, ground_truth = {}, 0, []
-        for video_id, video_info in data.items():
-            for anno in video_info:
-                if anno['label'] not in activity_index:
-                    activity_index[anno['label']] = class_idx
-                    class_idx += 1
-                ground_truth_item = {'video-id': video_id, 'label': activity_index[anno['label']],
-                                     't-start': float(anno['segment'][0]), 't-end': float(anno['segment'][1])}
-                ground_truth.append(ground_truth_item)
-
-        return ground_truth, activity_index
-
-    def _import_prediction(self, prediction_filename):
-        """Read prediction file and return the prediction instances.
-
-        Args:
-            prediction_filename (str): Full path to the prediction json file.
-
-        Returns:
-            List: List containing the prediction instances (dictionaries).
-        """
-        with open(prediction_filename, 'r') as f:
-            data = json.load(f)
-        prediction = []
-        for video_id, video_info in data.items():
-            for result in video_info:
-                prediction_item = {'video-id': video_id, 'label': self.activity_index[result['label']],
-                                   't-start': float(result['segment'][0]), 't-end': float(result['segment'][1]),
-                                   'score': result['score']}
-                prediction.append(prediction_item)
-
-        return prediction
