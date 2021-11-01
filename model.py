@@ -32,7 +32,7 @@ class CAS_Module(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, len_feature, num_classes, r_act, r_bkg):
+    def __init__(self, r_act, r_bkg, num_classes, len_feature=2048):
         super(Model, self).__init__()
         self.len_feature = len_feature
         self.num_classes = num_classes

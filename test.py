@@ -1,50 +1,37 @@
+import json
 import os
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 import utils
 from dataset import VideoDataset
-from eval.eval_detection import ANETdetection
+from eval_detection import ANETdetection
 from model import Model
-from options import parse_args
 
 
-def test(net, config, test_loader, test_info, step, model_file=None):
+def test(network, config, data_loader, metric_info):
     with torch.no_grad():
-        net.eval()
+        network.load_state_dict(torch.load(config.model_file, 'cpu'))
+        network = network.cuda()
+        network.eval()
 
-        if model_file is not None:
-            net.load_state_dict(torch.load(model_file))
+        results = {'version': 'VERSION 1.3', 'results': {},
+                   'external_data': {'used': True, 'details': 'Features from I3D Network'}}
+        num_correct, num_total = 0, 0
 
-        final_res = {}
-        final_res['version'] = 'VERSION 1.3'
-        final_res['results'] = {}
-        final_res['external_data'] = {'used': True, 'details': 'Features from I3D Network'}
-
-        num_correct = 0.
-        num_total = 0.
-
-        load_iter = iter(test_loader)
-
-        for i in range(len(test_loader.dataset)):
-
-            _data, _label, _, vid_name, vid_num_seg = next(load_iter)
-
-            _data = _data.cuda()
-            _label = _label.cuda()
-
-            vid_num_seg = vid_num_seg[0].cpu().item()
-            num_segments = _data.shape[1]
-
-            score_act, _, feat_act, feat_bkg, features, cas_softmax = net(_data)
+        for feat, label, video_name, num_seg, annotation in tqdm(data_loader):
+            feat, label, video_name = feat.cuda(), label.cuda(), video_name[0]
+            num_seg, num_segments = num_seg.item(), feat.shape[1]
+            score_act, _, feat_act, feat_bkg, features, cas_softmax = network(feat)
 
             feat_magnitudes_act = torch.mean(torch.norm(feat_act, dim=2), dim=1)
             feat_magnitudes_bkg = torch.mean(torch.norm(feat_bkg, dim=2), dim=1)
 
-            label_np = _label.cpu().data.numpy()
-            score_np = score_act[0].cpu().data.numpy()
+            label_np = label.detach().cpu().numpy()
+            score_np = score_act[0].detach().cpu().numpy()
 
             pred_np = np.zeros_like(score_np)
             pred_np[np.where(score_np < config.class_th)] = 0
@@ -52,14 +39,15 @@ def test(net, config, test_loader, test_info, step, model_file=None):
 
             correct_pred = np.sum(label_np == pred_np, axis=1)
 
-            num_correct += np.sum((correct_pred == config.num_classes).astype(np.float32))
+            num_correct += np.sum((correct_pred == len(data_loader.dataset.class_name_to_idx)).astype(np.float32))
             num_total += correct_pred.shape[0]
 
             feat_magnitudes = torch.norm(features, p=2, dim=2)
 
             feat_magnitudes = utils.minmax_norm(feat_magnitudes, max_val=feat_magnitudes_act,
                                                 min_val=feat_magnitudes_bkg)
-            feat_magnitudes = feat_magnitudes.repeat((config.num_classes, 1, 1)).permute(1, 2, 0)
+            feat_magnitudes = feat_magnitudes.repeat((len(data_loader.dataset.class_name_to_idx), 1, 1)).permute(1, 2,
+                                                                                                                 0)
 
             cas = utils.minmax_norm(cas_softmax * feat_magnitudes)
 
@@ -75,7 +63,7 @@ def test(net, config, test_loader, test_info, step, model_file=None):
 
             proposal_dict = {}
 
-            feat_magnitudes_np = feat_magnitudes[0].cpu().data.numpy()[:, pred]
+            feat_magnitudes_np = feat_magnitudes[0].detach().cpu().numpy()[:, pred]
             feat_magnitudes_np = np.reshape(feat_magnitudes_np, (num_segments, -1, 1))
             feat_magnitudes_np = utils.upgrade_resolution(feat_magnitudes_np, config.scale)
 
@@ -90,16 +78,16 @@ def test(net, config, test_loader, test_info, step, model_file=None):
                     pos = np.where(cas_temp[:, c, 0] > 0)
                     seg_list.append(pos)
 
-                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
-                                                   vid_num_seg, config.fps, num_segments)
+                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, num_seg,
+                                                   config.fps, num_segments)
 
-                for i in range(len(proposals)):
-                    class_id = proposals[i][0][0]
+                for j in range(len(proposals)):
+                    class_id = proposals[j][0][0]
 
                     if class_id not in proposal_dict.keys():
                         proposal_dict[class_id] = []
 
-                    proposal_dict[class_id] += proposals[i]
+                    proposal_dict[class_id] += proposals[j]
 
             for i in range(len(config.act_thresh_magnitudes)):
                 cas_temp = cas_pred.copy()
@@ -114,62 +102,61 @@ def test(net, config, test_loader, test_info, step, model_file=None):
                     pos = np.where(feat_magnitudes_np_temp[:, c, 0] > 0)
                     seg_list.append(pos)
 
-                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale, \
-                                                   vid_num_seg, config.fps, num_segments)
+                proposals = utils.get_proposal_oic(seg_list, cas_temp, score_np, pred, config.scale,
+                                                   num_seg, config.fps, num_segments)
 
-                for i in range(len(proposals)):
-                    class_id = proposals[i][0][0]
+                for j in range(len(proposals)):
+                    class_id = proposals[j][0][0]
 
                     if class_id not in proposal_dict.keys():
                         proposal_dict[class_id] = []
 
-                    proposal_dict[class_id] += proposals[i]
+                    proposal_dict[class_id] += proposals[j]
 
             final_proposals = []
             for class_id in proposal_dict.keys():
                 final_proposals.append(utils.nms(proposal_dict[class_id], 0.6))
 
-            final_res['results'][vid_name[0]] = utils.result2json(final_proposals)
+            results['results'][video_name] = utils.result2json(final_proposals, data_loader.dataset.idx_to_class_name)
 
         test_acc = num_correct / num_total
 
-        json_path = os.path.join(config.output_path, 'result.json')
+        json_path = os.path.join(config.save_path, 'result.json')
         with open(json_path, 'w') as f:
-            json.dump(final_res, f)
-            f.close()
+            json.dump(results, f)
 
-        tIoU_thresh = np.linspace(0.1, 0.7, 7)
-        anet_detection = ANETdetection(config.gt_path, json_path,
-                                       subset='test', tiou_thresholds=tIoU_thresh,
+        iou_thresh = np.linspace(0.1, 0.7, 7)
+        anet_detection = ANETdetection('/data/thumos14/annotations.json', json_path,
+                                       subset='test', tiou_thresholds=iou_thresh,
                                        verbose=False, check_status=False)
         mAP, average_mAP = anet_detection.evaluate()
 
-        logger.log_value('Test accuracy', test_acc, step)
+        print('Test accuracy: {}'.format(test_acc))
 
-        for i in range(tIoU_thresh.shape[0]):
-            logger.log_value('mAP@{:.1f}'.format(tIoU_thresh[i]), mAP[i], step)
+        for i in range(iou_thresh.shape[0]):
+            print('mAP@{:.1f}: {}'.format(iou_thresh[i], mAP[i]))
 
-        logger.log_value('Average mAP', average_mAP, step)
+        print('mAP@AVG: {}'.format(average_mAP))
 
-        test_info["step"].append(step)
-        test_info["test_acc"].append(test_acc)
-        test_info["average_mAP"].append(average_mAP)
+        metric_info['test_acc'].append(test_acc)
+        metric_info['mAP@AVG'].append(average_mAP)
 
-        for i in range(tIoU_thresh.shape[0]):
-            test_info["mAP@{:.1f}".format(tIoU_thresh[i])].append(mAP[i])
+        for i in range(iou_thresh.shape[0]):
+            metric_info['mAP@{:.1f}'.format(iou_thresh[i])].append(mAP[i])
 
 
 if __name__ == "__main__":
-    args = parse_args()
-
+    args = utils.parse_args()
     test_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'test', args.num_segments), batch_size=1,
                              shuffle=False, num_workers=args.num_workers, worker_init_fn=args.worker_init_fn)
 
-    net = Model(args.len_feature, args.num_classes, args.r_act, args.r_bkg).cuda()
+    net = Model(args.r_act, args.r_bkg, len(test_loader.dataset.class_name_to_idx))
 
-    test_info = {"step": [], "test_acc": [], "average_mAP": [],
-                 "mAP@0.1": [], "mAP@0.2": [], "mAP@0.3": [],
-                 "mAP@0.4": [], "mAP@0.5": [], "mAP@0.6": [], "mAP@0.7": []}
+    if args.data_name == 'thumos14':
+        test_info = {'test_acc': [], 'mAP@AVG': [], 'mAP@0.1': [], 'mAP@0.2': [], 'mAP@0.3': [],
+                     'mAP@0.4': [], 'mAP@0.5': [], 'mAP@0.6': [], 'mAP@0.7': []}
+    else:
+        test_info = {'test_acc': [], 'mAP@AVG': [], 'mAP@0.5': [], 'mAP@0.75': [], 'mAP@0.95': []}
 
-    test(net, args, test_loader, test_info, 0, model_file=args.model_file)
-    utils.save_best_record_thumos(test_info, os.path.join(args.output_path, "best_record.txt"))
+    test(net, args, test_loader, test_info)
+    utils.save_best_record_thumos(test_info, os.path.join(args.save_path, 'best_record.txt'))

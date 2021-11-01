@@ -9,9 +9,9 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 
-from .utils_eval import get_blocked_videos
-from .utils_eval import interpolated_prec_rec
-from .utils_eval import segment_iou
+from utils_eval import get_blocked_videos
+from utils_eval import interpolated_prec_rec
+from utils_eval import segment_iou
 
 warnings.filterwarnings("ignore", message="numpy.dtype size changed")
 warnings.filterwarnings("ignore", message="numpy.ufunc size changed")

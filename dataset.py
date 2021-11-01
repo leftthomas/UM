@@ -10,20 +10,20 @@ import torch.utils.data as data
 class VideoDataset(data.Dataset):
     def __init__(self, data_path, data_name, mode, num_segments):
 
-        self.data_name, self.num_segments = data_name, num_segments
+        self.data_name, self.mode, self.num_segments = data_name, mode, num_segments
 
         # prepare features
         if data_name == 'thumos14':
+            mode = 'val' if mode == 'train' else 'test'
             self.rgb = glob.glob(os.path.join(data_path, data_name, 'features', mode, 'rgb', '*'))
             self.flow = glob.glob(os.path.join(data_path, data_name, 'features', mode, 'flow', '*'))
-            self.mode = 'train' if mode == 'val' else 'test'
             with open(os.path.join(data_path, data_name, 'annotations.json')) as f:
                 annotations = json.load(f)['database']
         else:
+            mode = 'train' if mode == 'train' else 'val'
             data_name, suffix = data_name[:-3], data_name[-3:]
             self.rgb = glob.glob(os.path.join(data_path, data_name, 'features_{}'.format(suffix), mode, 'rgb', '*'))
             self.flow = glob.glob(os.path.join(data_path, data_name, 'features_{}'.format(suffix), mode, 'flow', '*'))
-            self.mode = 'train' if mode == 'train' else 'test'
             with open(os.path.join(data_path, data_name, 'annotations_{}.json'.format(suffix))) as f:
                 annotations = json.load(f)['database']
 
@@ -44,14 +44,15 @@ class VideoDataset(data.Dataset):
 
     def __getitem__(self, index):
         rgb, flow, annotation = np.load(self.rgb[index]), np.load(self.flow[index]), self.annotations[index]
-        num_seg = rgb.shape[0]
+        video_name, num_seg = os.path.basename(self.rgb[index]).split('.')[0], rgb.shape[0]
         sample_idx = self.random_sampling(num_seg) if self.mode == 'train' else self.uniform_sampling(num_seg)
         rgb, flow = torch.from_numpy(rgb[sample_idx]), torch.from_numpy(flow[sample_idx])
 
         label = torch.zeros(len(self.class_name_to_idx))
         for item in annotation:
             label[self.class_name_to_idx[item['label']]] = 1
-        return rgb, flow, label, annotation
+        feat = torch.cat((rgb, flow), dim=-1)
+        return feat, label, video_name, num_seg, annotation
 
     def random_sampling(self, length):
         if self.num_segments == length:
