@@ -8,8 +8,7 @@ class CAS(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv1d(in_channels=len_feature, out_channels=len_feature, kernel_size=3, stride=1, padding=1), nn.ReLU())
 
-        self.classifier = nn.Sequential(
-            nn.Conv1d(in_channels=len_feature, out_channels=num_classes, kernel_size=1, stride=1, bias=False))
+        self.classifier = nn.Conv1d(in_channels=len_feature, out_channels=num_classes, kernel_size=1, bias=False)
         self.drop_out = nn.Dropout(p=0.7)
 
     def forward(self, x):

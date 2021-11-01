@@ -23,7 +23,7 @@ def test(network, config, data_loader, metric_info):
         for feat, label, video_name, num_seg, annotation in tqdm(data_loader):
             feat, label, video_name = feat.cuda(), label.cuda(), video_name[0]
             num_seg, num_segments = num_seg.item(), feat.shape[1]
-            score_act, _, feat_act, feat_bkg, features, cas_softmax = network(feat)
+            score_act, score_bkg, score_cas, feat_act, feat_bkg, feat = network(feat)
 
             feat_magnitudes_act = torch.mean(torch.norm(feat_act, dim=2), dim=1)
             feat_magnitudes_bkg = torch.mean(torch.norm(feat_bkg, dim=2), dim=1)
@@ -40,13 +40,13 @@ def test(network, config, data_loader, metric_info):
             num_correct += np.sum((correct_pred == network.num_classes).astype(np.float32))
             num_total += correct_pred.shape[0]
 
-            feat_magnitudes = torch.norm(features, p=2, dim=2)
+            feat_magnitudes = torch.norm(feat, p=2, dim=2)
 
             feat_magnitudes = utils.minmax_norm(feat_magnitudes, max_val=feat_magnitudes_act,
                                                 min_val=feat_magnitudes_bkg)
             feat_magnitudes = feat_magnitudes.repeat((network.num_classes, 1, 1)).permute(1, 2, 0)
 
-            cas = utils.minmax_norm(cas_softmax * feat_magnitudes)
+            cas = utils.minmax_norm(score_cas * feat_magnitudes)
 
             pred = np.where(score_np >= config.class_th)[0]
 
