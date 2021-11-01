@@ -1,133 +1,72 @@
-from tensorboard_logger import Logger
+import os
 
-from test import *
-from utils import *
+import torch
+from torch import nn
+from torch.optim import Adam
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+import utils
+from dataset import VideoDataset
+from model import Model
+from test import test_loop
 
 
-class UM_loss(nn.Module):
-    def __init__(self, alpha, beta, margin):
-        super(UM_loss, self).__init__()
-        self.alpha = alpha
-        self.beta = beta
-        self.margin = margin
-        self.ce_criterion = nn.BCELoss()
+class UMLoss(nn.Module):
+    def __init__(self, magnitude):
+        super(UMLoss, self).__init__()
+        self.magnitude = magnitude
 
-    def forward(self, score_act, score_bkg, feat_act, feat_bkg, label):
-        loss = {}
-
-        label = label / torch.sum(label, dim=1, keepdim=True)
-
-        loss_cls = self.ce_criterion(score_act, label)
-
-        label_bkg = torch.ones_like(label).cuda()
-        label_bkg /= torch.sum(label_bkg, dim=1, keepdim=True)
-        loss_be = self.ce_criterion(score_bkg, label_bkg)
-
-        loss_act = self.margin - torch.norm(torch.mean(feat_act, dim=1), p=2, dim=1)
-        loss_act[loss_act < 0] = 0
-        loss_bkg = torch.norm(torch.mean(feat_bkg, dim=1), p=2, dim=1)
-
+    def forward(self, feat_act, feat_bkg):
+        loss_act = torch.relu(self.magnitude - torch.norm(torch.mean(feat_act, dim=-1), dim=-1))
+        loss_bkg = torch.norm(torch.mean(feat_bkg, dim=-1), dim=-1)
         loss_um = torch.mean((loss_act + loss_bkg) ** 2)
-
-        loss_total = loss_cls + self.alpha * loss_um + self.beta * loss_be
-
-        loss["loss_cls"] = loss_cls
-        loss["loss_be"] = loss_be
-        loss["loss_um"] = loss_um
-        loss["loss_total"] = loss_total
-
-        return loss_total, loss
+        return loss_um
 
 
-def train(net, loader_iter, optimizer, criterion, logger, step):
-    net.train()
+def train_loop(network, data_loader, train_optimizer, n_iter):
+    network.train()
+    data, label = next(data_loader)
+    data, label = data.cuda(), label.cuda()
+    label_act = label / torch.sum(label, dim=-1, keepdim=True)
+    label_bkg = torch.ones_like(label)
+    label_bkg /= torch.sum(label_bkg, dim=-1, keepdim=True)
 
-    _data, _label, _, _, _ = next(loader_iter)
+    train_optimizer.zero_grad()
+    score_act, score_bkg, _, feat_act, feat_bkg, _ = network(data)
+    cls_loss = bce_criterion(score_act, label_act)
+    um_loss = um_criterion(feat_act, feat_bkg)
+    be_loss = bce_criterion(score_bkg, label_bkg)
+    loss = cls_loss + args.alpha * um_loss + args.beta * be_loss
+    loss.backward()
+    train_optimizer.step()
 
-    _data = _data.cuda()
-    _label = _label.cuda()
-
-    optimizer.zero_grad()
-
-    score_act, score_bkg, feat_act, feat_bkg, _, _ = net(_data)
-
-    cost, loss = criterion(score_act, score_bkg, feat_act, feat_bkg, _label)
-
-    cost.backward()
-    optimizer.step()
-
-    for key in loss.keys():
-        logger.log_value(key, loss[key].cpu().item(), step)
+    print('Train Step: [{}/{}] Total Loss: {:.4f} CLS Loss: {:.4f} UM Loss: {:.4f} BE Loss: {:.4f}'
+          .format(n_iter, args.num_iters, loss.item(), cls_loss.item(), um_loss.item(), be_loss.item()))
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    args, test_info = utils.parse_args()
+    train_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'train', args.num_segments),
+                              batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
+                              worker_init_fn=args.worker_init_fn)
+    test_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'test', args.num_segments), batch_size=1,
+                             shuffle=False, num_workers=args.num_workers, worker_init_fn=args.worker_init_fn)
 
-    config = Config(args)
-    worker_init_fn = None
+    net = Model(args.r_act, args.r_bkg, len(train_loader.dataset.class_name_to_idx)).cuda()
 
-    if config.seed >= 0:
-        utils.set_seed(config.seed)
-        worker_init_fn = np.random.seed(config.seed)
+    best_mAP, um_criterion, bce_criterion = -1, UMLoss(args.magnitude), nn.BCELoss()
+    optimizer = Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
+    desc_bar = tqdm(range(1, args.num_iters + 1), total=args.num_iters, dynamic_ncols=True)
 
-    utils.save_config(config, os.path.join(config.output_path, "config.txt"))
-
-    net = Model(config.len_feature, config.num_classes, config.r_act, config.r_bkg)
-    net = net.cuda()
-
-    train_loader = data.DataLoader(
-        VideoDataset(data_path=config.data_path, mode='train',
-                     modal=config.modal, fps=config.feature_fps,
-                     num_segments=config.num_segments, supervision='weak',
-                     seed=config.seed, sampling='random'),
-        batch_size=config.batch_size,
-        shuffle=True, num_workers=config.num_workers,
-        worker_init_fn=worker_init_fn)
-
-    test_loader = data.DataLoader(
-        VideoDataset(data_path=config.data_path, mode='test',
-                     modal=config.modal, fps=config.feature_fps,
-                     num_segments=config.num_segments, supervision='weak',
-                     seed=config.seed, sampling='uniform'),
-        batch_size=1,
-        shuffle=False, num_workers=config.num_workers,
-        worker_init_fn=worker_init_fn)
-
-    test_info = {"step": [], "test_acc": [], "average_mAP": [],
-                 "mAP@0.1": [], "mAP@0.2": [], "mAP@0.3": [],
-                 "mAP@0.4": [], "mAP@0.5": [], "mAP@0.6": [], "mAP@0.7": []}
-
-    best_mAP = -1
-
-    criterion = UM_loss(config.alpha, config.beta, config.margin)
-
-    optimizer = torch.optim.Adam(net.parameters(), lr=config.lr[0],
-                                 betas=(0.9, 0.999), weight_decay=0.0005)
-
-    logger = Logger(config.log_path)
-
-    for step in tqdm(
-            range(1, config.num_iters + 1),
-            total=config.num_iters,
-            dynamic_ncols=True
-    ):
-        if step > 1 and config.lr[step - 1] != config.lr[step - 2]:
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = config.lr[step - 1]
-
+    for step in desc_bar:
         if (step - 1) % len(train_loader) == 0:
             loader_iter = iter(train_loader)
 
-        train(net, loader_iter, optimizer, criterion, logger, step)
+        train_loop(net, loader_iter, optimizer, step)
+        test_loop(net, args, test_loader, test_info, step)
 
-        test(net, config, logger, test_loader, test_info, step)
-
-        if test_info["average_mAP"][-1] > best_mAP:
-            best_mAP = test_info["average_mAP"][-1]
-
-            utils.save_best_record(test_info,
-                                   os.path.join(config.output_path,
-                                                "best_record_seed_{}.txt".format(config.seed)))
-
-            torch.save(net.state_dict(), os.path.join(args.model_path, \
-                                                      "model_seed_{}.pkl".format(config.seed)))
+        if test_info['mAP@AVG'][-1] > best_mAP:
+            best_mAP = test_info['mAP@AVG'][-1]
+            utils.save_best_record(test_info, os.path.join(args.save_path, '{}_record.txt'.format(args.data_name)))
+            torch.save(net.state_dict(), os.path.join(args.model_path, '{}_model.pth'.format(args.data_name)))

@@ -24,6 +24,7 @@ def parse_args():
                         choices=['thumos14', 'activitynet1.2', 'activitynet1.3'])
     parser.add_argument('--num_segments', type=int, default=750)
     parser.add_argument('--lr', type=float, default=0.0001)
+    parser.add_argument('--decay', type=float, default=0.0005, help='weight decay value for Adam')
     parser.add_argument('--num_iters', type=int, default=10000)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_workers', type=int, default=8)
@@ -52,7 +53,13 @@ def init_args(args):
     args.fps = 25
     args.seg_th = np.arange(0.0, 0.25, 0.025)
     args.act_thresh_magnitudes = np.arange(0.4, 0.625, 0.025)
-    return args
+
+    if args.data_name == 'thumos14':
+        test_info = {'Test ACC': [], 'mAP@AVG': [], 'mAP@0.1': [], 'mAP@0.2': [], 'mAP@0.3': [],
+                     'mAP@0.4': [], 'mAP@0.5': [], 'mAP@0.6': [], 'mAP@0.7': []}
+    else:
+        test_info = {'Test ACC': [], 'mAP@AVG': [], 'mAP@0.5': [], 'mAP@0.75': [], 'mAP@0.95': []}
+    return args, test_info
 
 
 def upgrade_resolution(arr, scale):
@@ -114,7 +121,7 @@ def grouping(arr):
 
 def save_best_record(test_info, file_path):
     with open(file_path, 'w') as fo:
-        fo.write("Test Acc: {:.3f}\n".format(test_info["test_acc"][-1]))
+        fo.write("Test ACC: {:.3f}\n".format(test_info["Test ACC"][-1]))
         fo.write("mAP@AVG: {:.3f}\n".format(test_info["mAP@AVG"][-1]))
         tIoU_thresh = np.linspace(0.1, 0.7, 7)
         for i in range(len(tIoU_thresh)):

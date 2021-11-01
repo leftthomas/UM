@@ -55,7 +55,10 @@ class VideoDataset(Dataset):
         for item in annotation['annotations']:
             label[self.class_name_to_idx[item['label']]] = 1
         feat = torch.cat((rgb, flow), dim=-1)
-        return feat, label, video_name, num_seg, annotation
+        if self.mode == 'train':
+            return feat, label
+        else:
+            return feat, label, video_name, num_seg, annotation
 
     def random_sampling(self, length):
         if self.num_segments == length:

@@ -13,7 +13,7 @@ from dataset import VideoDataset
 from model import Model
 
 
-def test(network, config, data_loader, metric_info):
+def test_loop(network, config, data_loader, metric_info, step):
     with torch.no_grad():
         network.load_state_dict(torch.load(config.model_file, 'cpu'))
         network = network.cuda()
@@ -133,14 +133,14 @@ def test(network, config, data_loader, metric_info):
         anet_detection = ActivityNetLocalization(gt_path, pred_path, tiou_thresholds=iou_thresh, verbose=False)
         mAP, average_mAP = anet_detection.evaluate()
 
-        print('Test accuracy: {:.3f}'.format(test_acc))
+        print('Test ACC: {:.3f}'.format(test_acc))
 
         for i in range(iou_thresh.shape[0]):
             print('mAP@{:.1f}: {:.3f}'.format(iou_thresh[i], mAP[i]))
 
         print('mAP@AVG: {:.3f}'.format(average_mAP))
 
-        metric_info['test_acc'].append(test_acc)
+        metric_info['Test ACC'].append(test_acc)
         metric_info['mAP@AVG'].append(average_mAP)
 
         for i in range(iou_thresh.shape[0]):
@@ -148,17 +148,11 @@ def test(network, config, data_loader, metric_info):
 
 
 if __name__ == "__main__":
-    args = utils.parse_args()
+    args, test_info = utils.parse_args()
     test_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'test', args.num_segments), batch_size=1,
                              shuffle=False, num_workers=args.num_workers, worker_init_fn=args.worker_init_fn)
 
     net = Model(args.r_act, args.r_bkg, len(test_loader.dataset.class_name_to_idx))
 
-    if args.data_name == 'thumos14':
-        test_info = {'test_acc': [], 'mAP@AVG': [], 'mAP@0.1': [], 'mAP@0.2': [], 'mAP@0.3': [],
-                     'mAP@0.4': [], 'mAP@0.5': [], 'mAP@0.6': [], 'mAP@0.7': []}
-    else:
-        test_info = {'test_acc': [], 'mAP@AVG': [], 'mAP@0.5': [], 'mAP@0.75': [], 'mAP@0.95': []}
-
-    test(net, args, test_loader, test_info)
+    test_loop(net, args, test_loader, test_info, 0)
     utils.save_best_record(test_info, os.path.join(args.save_path, '{}_record.txt'.format(args.data_name)))
