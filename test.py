@@ -22,11 +22,11 @@ def test_loop(network, config, data_loader, step):
 
         results, num_correct, num_total = {'results': {}}, 0, 0
         for feat, label, video_name, num_seg, _ in tqdm(data_loader):
-            feat, label, video_name = feat.cuda(), label.squeeze().cuda(), video_name[0]
+            feat, label, video_name = feat.cuda(), label.squeeze(0).cuda(), video_name[0]
             num_seg, num_segments = num_seg.item(), feat.shape[1]
             score_act, score_bkg, score_cas, feat_act, feat_bkg, feat = network(feat)
-            score_act, score_bkg, score_cas = score_act.squeeze(), score_bkg.squeeze(), score_cas.squeeze()
-            feat_act, feat_bkg, feat = feat_act.squeeze(), feat_bkg.squeeze(), feat.squeeze()
+            score_act, score_bkg, score_cas = score_act.squeeze(0), score_bkg.squeeze(0), score_cas.squeeze(0)
+            feat_act, feat_bkg, feat = feat_act.squeeze(0), feat_bkg.squeeze(0), feat.squeeze(0)
 
             correct_pred = torch.sum(torch.eq(label, torch.ge(score_act, config.act_th).float()), dim=-1,
                                      keepdim=True)
@@ -51,19 +51,20 @@ def test_loop(network, config, data_loader, step):
             score_pred = utils.upgrade_resolution(score_cas[:, pred].cpu().numpy(), config.scale)
             feat_magnitudes_pred = utils.upgrade_resolution(feat_magnitudes[:, pred].cpu().numpy(), config.scale)
 
-            proposal_dict = {}
+            proposal_dict, status = {}, True
             # enrich the proposal pool by using multiple thresholds
             for threshold, temp_pred in zip([config.seg_th, config.mag_th], [score_pred, feat_magnitudes_pred]):
                 for i in range(len(threshold)):
-                    temp_pred = temp_pred.copy()
-                    temp_pred[np.where(temp_pred < threshold[i])] = 0
+                    filtered_pred = temp_pred.copy()
+                    filtered_pred[np.where(filtered_pred < threshold[i])] = 0
 
                     seg_list = []
                     # select the candidate segments
                     for c in range(len(pred)):
-                        seg_list.append(np.where(temp_pred[:, c] > 0))
+                        seg_list.append(np.where(filtered_pred[:, c] > 0))
                     # obtain the proposals
-                    proposals = utils.get_proposal(seg_list, score_pred, score_act.cpu().numpy(), pred.cpu().numpy(),
+                    scores = filtered_pred if status else score_pred
+                    proposals = utils.get_proposal(seg_list, scores, score_act.cpu().numpy(), pred.cpu().numpy(),
                                                    config.scale, num_seg, config.fps, config.sampling_frames,
                                                    num_segments)
                     for j in range(len(proposals)):
@@ -71,7 +72,7 @@ def test_loop(network, config, data_loader, step):
                         if class_id not in proposal_dict.keys():
                             proposal_dict[class_id] = []
                         proposal_dict[class_id] += np.array(proposals[j])[:, 1:].tolist()
-
+                status = False
             final_proposals = {}
             # temporal nms
             for class_id in proposal_dict.keys():
@@ -95,7 +96,6 @@ def test_loop(network, config, data_loader, step):
 
         desc = 'Test Step: [{}/{}] Test ACC: {:.1f} mAP@AVG: {:.1f}'.format(step, args.num_iters, test_acc * 100,
                                                                             mAP_avg * 100)
-        metric_info['Step'] = step
         metric_info['Test ACC'] = round(test_acc * 100, 1)
         metric_info['mAP@AVG'] = round(mAP_avg * 100, 1)
         for i in range(map_thresh.shape[0]):

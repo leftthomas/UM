@@ -118,7 +118,7 @@ def grouping(arr):
 
 def minmax_norm(act_map, min_val=None, max_val=None):
     if min_val is None or max_val is None:
-        min_val, max_val = torch.aminmax(act_map, dim=-1, keepdim=True)
+        min_val, max_val = torch.aminmax(act_map, dim=0, keepdim=True)
         min_val, max_val = torch.relu(min_val), torch.relu(max_val)
 
     delta = max_val - min_val

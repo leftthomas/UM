@@ -57,15 +57,17 @@ if __name__ == "__main__":
 
     net = Model(args.r_act, args.r_bkg, len(train_loader.dataset.class_name_to_idx)).cuda()
 
-    best_mAP, um_criterion, bce_criterion = -1, UMLoss(args.magnitude), nn.BCELoss()
+    best_mAP, um_criterion, bce_criterion, metric_info = -1, UMLoss(args.magnitude), nn.BCELoss(), {}
     optimizer = Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
-
     for step in tqdm(range(1, args.num_iters + 1), total=args.num_iters, dynamic_ncols=True):
         if (step - 1) % len(train_loader) == 0:
             loader_iter = iter(train_loader)
 
         train_loop(net, loader_iter, optimizer, step)
         test_info = test_loop(net, args, test_loader, step)
+        metric_info['Step {}'.format(step)] = test_info
+        with open(os.path.join(args.save_path, '{}_metric.json'.format(args.data_name)), 'w') as f:
+            json.dump(metric_info, f, indent=4)
 
         if test_info['mAP@AVG'] > best_mAP:
             best_mAP = test_info['mAP@AVG']
