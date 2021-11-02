@@ -105,13 +105,13 @@ def test_loop(network, config, data_loader, step):
         metric_info['Test ACC'] = round(test_acc * 100, 1)
         metric_info['mAP@AVG'] = round(mAP_avg * 100, 1)
         for i in range(map_thresh.shape[0]):
-            desc += ' mAP@{}: {:.1f}'.format(map_thresh[i], mAP[i] * 100)
+            desc += ' mAP@{:.2f}: {:.1f}'.format(map_thresh[i], mAP[i] * 100)
             metric_info['mAP@{:.2f}'.format(map_thresh[i])] = round(mAP[i] * 100, 1)
         print(desc)
         return metric_info
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     args = utils.parse_args()
     test_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'test', args.num_segments), batch_size=1,
                              shuffle=False, num_workers=args.num_workers, worker_init_fn=args.worker_init_fn)

@@ -48,7 +48,7 @@ def train_loop(network, data_loader, train_optimizer, n_iter):
                                       be_loss.item()))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     args = utils.parse_args()
     train_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'train', args.num_segments),
                               batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,

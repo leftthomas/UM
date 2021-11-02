@@ -130,6 +130,3 @@ def minmax_norm(act_map, min_val=None, max_val=None):
     ret[ret < 0] = 0
 
     return ret
-
-
-
