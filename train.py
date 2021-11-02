@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
     best_mAP, um_criterion, bce_criterion, metric_info = -1, UMLoss(args.magnitude), nn.BCELoss(), {}
     optimizer = Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
-    train_bar = tqdm(range(1, args.num_iter + 1), total=args.num_iter, dynamic_ncols=True)
+    train_bar = tqdm(range(1, args.num_iter + 1), total=args.num_iter, initial=1, dynamic_ncols=True)
     for step in train_bar:
         if (step - 1) % len(train_loader) == 0:
             loader_iter = iter(train_loader)

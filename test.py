@@ -22,7 +22,7 @@ def test_loop(network, config, data_loader, step):
         network.eval()
 
         results, num_correct, num_total = {'results': {}}, 0, 0
-        for feat, label, video_name, num_seg, _ in tqdm(data_loader):
+        for feat, label, video_name, num_seg, _ in tqdm(data_loader, initial=1, dynamic_ncols=True):
             feat, label, video_name = feat.cuda(), label.squeeze(0).cuda(), video_name[0]
             num_seg, num_segments = num_seg.item(), feat.shape[1]
             score_act, score_bkg, score_cas, feat_act, feat_bkg, feat = network(feat)
