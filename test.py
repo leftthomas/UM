@@ -16,8 +16,9 @@ from model import Model
 def test_loop(network, config, data_loader, step):
     metric_info = {}
     with torch.no_grad():
-        network.load_state_dict(torch.load(config.model_file, 'cpu'))
-        network = network.cuda()
+        if config.model_file is not None:
+            network.load_state_dict(torch.load(config.model_file, 'cpu'))
+            network = network.cuda()
         network.eval()
 
         results, num_correct, num_total = {'results': {}}, 0, 0
@@ -89,12 +90,12 @@ def test_loop(network, config, data_loader, step):
         with open(pred_path, 'w') as f:
             json.dump(results, f, indent=4)
 
-        map_thresh = args.map_th
+        map_thresh = config.map_th
         # evaluate the metrics
         evaluator_atl = ActivityNetLocalization(gt_path, pred_path, tiou_thresholds=map_thresh, verbose=False)
         mAP, mAP_avg = evaluator_atl.evaluate()
 
-        desc = 'Test Step: [{}/{}] Test ACC: {:.1f} mAP@AVG: {:.1f}'.format(step, args.num_iters, test_acc * 100,
+        desc = 'Test Step: [{}/{}] Test ACC: {:.1f} mAP@AVG: {:.1f}'.format(step, config.num_iters, test_acc * 100,
                                                                             mAP_avg * 100)
         metric_info['Test ACC'] = round(test_acc * 100, 1)
         metric_info['mAP@AVG'] = round(mAP_avg * 100, 1)

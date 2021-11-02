@@ -59,6 +59,7 @@ if __name__ == "__main__":
 
     best_mAP, um_criterion, bce_criterion, metric_info = -1, UMLoss(args.magnitude), nn.BCELoss(), {}
     optimizer = Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
+
     for step in tqdm(range(1, args.num_iters + 1), total=args.num_iters, dynamic_ncols=True):
         if (step - 1) % len(train_loader) == 0:
             loader_iter = iter(train_loader)
@@ -73,4 +74,4 @@ if __name__ == "__main__":
             best_mAP = test_info['mAP@AVG']
             with open(os.path.join(args.save_path, '{}_record.json'.format(args.data_name)), 'w') as f:
                 json.dump(test_info, f, indent=4)
-            torch.save(net.state_dict(), os.path.join(args.model_path, '{}_model.pth'.format(args.data_name)))
+            torch.save(net.state_dict(), os.path.join(args.save_path, '{}_model.pth'.format(args.data_name)))

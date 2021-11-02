@@ -14,6 +14,13 @@ A PyTorch implementation of UM based on AAAI 2021 paper
 conda install pytorch=1.10.0 torchvision cudatoolkit=11.3 -c pytorch
 ```
 
+- [MMAction2](https://mmaction2.readthedocs.io)
+
+```
+pip install git+https://github.com/open-mmlab/mim.git
+mim install mmaction2
+```
+
 ## Dataset
 
 [THUMOS 14](http://crcv.ucf.edu/THUMOS14/download.html) and
@@ -51,37 +58,24 @@ structure is shown as follows:
 
 ## Usage
 
+You can easily train and test the model by running the script below. If you want to try other options, please refer to
+`utils.py`.
 ### Train Model
 
 ```
-python train.py --data_name tuberlin
-optional arguments:
---data_root                   Datasets root path [default value is '/data']
---data_name                   Dataset name [default value is 'sketchy'](choices=['sketchy', 'tuberlin'])
---backbone_type               Backbone type [default value is 'resnet50'](choices=['resnet50', 'vgg16'])
---emb_dim                     Embedding dim [default value is 512]
---batch_size                  Number of images in each mini-batch [default value is 64]
---epochs                      Number of epochs over the model to train [default value is 10]
---warmup                      Number of warmups over the extractor to train [default value is 1]
---save_root                   Result saved root path [default value is 'result']
+python train.py --data_name activitynet1.2 --num_segments 50 --seed 0
 ```
 
 ### Test Model
 
 ```
-python test.py --num 8
-optional arguments:
---data_root                   Datasets root path [default value is '/data']
---query_name                  Query image name [default value is '/data/sketchy/val/sketch/cow/n01887787_591-14.jpg']
---data_base                   Queried database [default value is 'result/sketchy_resnet50_2048_vectors.pth']
---num                         Retrieval number [default value is 4]
---save_root                   Result saved root path [default value is 'result']
+python test.py --model_file --data_name thumos14 --model_file result/thumos14_model.pth
 ```
 
 ## Benchmarks
 
-The models are trained on one NVIDIA GTX TITAN (12G) GPU. `Adam` is used to optimize the model, `lr` is `1e-5`
-for backbone, `1e-3` for generator and `1e-4` for discriminator. all the hyper-parameters are the default values.
+The models are trained on one NVIDIA GeForce GTX 1080 Ti GPU (11G). All the hyper-parameters are the default values
+according to the papers.
 
 <table>
 <thead>
@@ -185,6 +179,3 @@ for backbone, `1e-3` for generator and `1e-4` for discriminator. all the hyper-p
 </tbody>
 </table>
 
-## Results
-
-![vis](result/vis.png)
