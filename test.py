@@ -95,7 +95,7 @@ def test_loop(network, config, data_loader, step):
         evaluator_atl = ActivityNetLocalization(gt_path, pred_path, tiou_thresholds=map_thresh, verbose=False)
         mAP, mAP_avg = evaluator_atl.evaluate()
 
-        desc = 'Test Step: [{}/{}] Test ACC: {:.1f} mAP@AVG: {:.1f}'.format(step, config.num_iters, test_acc * 100,
+        desc = 'Test Step: [{}/{}] Test ACC: {:.1f} mAP@AVG: {:.1f}'.format(step, config.num_iter, test_acc * 100,
                                                                             mAP_avg * 100)
         metric_info['Test ACC'] = round(test_acc * 100, 1)
         metric_info['mAP@AVG'] = round(mAP_avg * 100, 1)
