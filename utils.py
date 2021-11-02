@@ -16,8 +16,8 @@ def parse_args():
     parser.add_argument('--alpha', type=float, default=0.0005)
     parser.add_argument('--beta', type=float, default=1.0)
     parser.add_argument('--magnitude', type=int, default=100)
-    parser.add_argument('--r_act', type=float, default=9)
-    parser.add_argument('--r_bkg', type=float, default=4)
+    parser.add_argument('--r_act', type=int, default=9)
+    parser.add_argument('--r_bkg', type=int, default=4)
     parser.add_argument('--act_th', type=float, default=0.2, help='threshold for action score')
     parser.add_argument('--iou_th', type=float, default=0.6, help='threshold for NMS IoU')
     parser.add_argument('--seg_th', type=str, default='np.arange(0.0, 0.25, 0.025)',

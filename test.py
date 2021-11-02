@@ -24,6 +24,9 @@ def test_loop(network, config, data_loader, step):
         results, num_correct, num_total = {'results': {}}, 0, 0
         for feat, label, video_name, num_seg, _ in tqdm(data_loader, initial=1, dynamic_ncols=True):
             feat, label, video_name = feat.cuda(), label.squeeze(0).cuda(), video_name[0]
+            # pass the videos which contains only 1 frame
+            if feat.shape[1] <= 1:
+                continue
             num_seg, num_segments = num_seg.item(), feat.shape[1]
             score_act, score_bkg, score_cas, feat_act, feat_bkg, feat = network(feat)
             score_act, score_bkg, score_cas = score_act.squeeze(0), score_bkg.squeeze(0), score_cas.squeeze(0)
@@ -41,8 +44,8 @@ def test_loop(network, config, data_loader, step):
 
             # calculate posterior probabilities for segments
             feat_magnitudes = torch.norm(feat, dim=-1)
-            feat_magnitudes_act = torch.mean(torch.norm(feat_act, dim=-1), dim=-1)
-            feat_magnitudes_bkg = torch.mean(torch.norm(feat_bkg, dim=-1), dim=-1)
+            feat_magnitudes_act = torch.mean(torch.norm(feat_act, dim=-1), dim=-1, keepdim=True)
+            feat_magnitudes_bkg = torch.mean(torch.norm(feat_bkg, dim=-1), dim=-1, keepdim=True)
             feat_magnitudes = utils.minmax_norm(feat_magnitudes, max_val=feat_magnitudes_act,
                                                 min_val=feat_magnitudes_bkg)
             feat_magnitudes = feat_magnitudes.unsqueeze(dim=-1).expand(-1, network.num_classes)
@@ -69,6 +72,8 @@ def test_loop(network, config, data_loader, step):
                                                    config.scale, num_seg, config.fps, config.sampling_frames,
                                                    num_segments)
                     for j in range(len(proposals)):
+                        if len(proposals[j]) == 0:
+                            continue
                         class_id = proposals[j][0][0]
                         if class_id not in proposal_dict.keys():
                             proposal_dict[class_id] = []
@@ -101,7 +106,7 @@ def test_loop(network, config, data_loader, step):
         metric_info['mAP@AVG'] = round(mAP_avg * 100, 1)
         for i in range(map_thresh.shape[0]):
             desc += ' mAP@{}: {:.1f}'.format(map_thresh[i], mAP[i] * 100)
-            metric_info['mAP@{}'.format(map_thresh[i])] = round(mAP[i] * 100, 1)
+            metric_info['mAP@{:.2f}'.format(map_thresh[i])] = round(mAP[i] * 100, 1)
         print(desc)
         return metric_info
 
