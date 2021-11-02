@@ -1,3 +1,4 @@
+import json
 import os
 
 import torch
@@ -29,6 +30,7 @@ def train_loop(network, data_loader, train_optimizer, n_iter):
     data, label = next(data_loader)
     data, label = data.cuda(), label.cuda()
     label_act = label / torch.sum(label, dim=-1, keepdim=True)
+    # a trick to flexible use bce Loss to formula be loss
     label_bkg = torch.ones_like(label)
     label_bkg /= torch.sum(label_bkg, dim=-1, keepdim=True)
 
@@ -41,12 +43,12 @@ def train_loop(network, data_loader, train_optimizer, n_iter):
     loss.backward()
     train_optimizer.step()
 
-    print('Train Step: [{}/{}] Total Loss: {:.4f} CLS Loss: {:.4f} UM Loss: {:.4f} BE Loss: {:.4f}'
+    print('Train Step: [{}/{}] Total Loss: {:.3f} CLS Loss: {:.3f} UM Loss: {:.3f} BE Loss: {:.3f}'
           .format(n_iter, args.num_iters, loss.item(), cls_loss.item(), um_loss.item(), be_loss.item()))
 
 
 if __name__ == "__main__":
-    args, test_info = utils.parse_args()
+    args = utils.parse_args()
     train_loader = DataLoader(VideoDataset(args.data_path, args.data_name, 'train', args.num_segments),
                               batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers,
                               worker_init_fn=args.worker_init_fn)
@@ -57,16 +59,16 @@ if __name__ == "__main__":
 
     best_mAP, um_criterion, bce_criterion = -1, UMLoss(args.magnitude), nn.BCELoss()
     optimizer = Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
-    desc_bar = tqdm(range(1, args.num_iters + 1), total=args.num_iters, dynamic_ncols=True)
 
-    for step in desc_bar:
+    for step in tqdm(range(1, args.num_iters + 1), total=args.num_iters, dynamic_ncols=True):
         if (step - 1) % len(train_loader) == 0:
             loader_iter = iter(train_loader)
 
         train_loop(net, loader_iter, optimizer, step)
-        test_loop(net, args, test_loader, test_info, step)
+        test_info = test_loop(net, args, test_loader, step)
 
-        if test_info['mAP@AVG'][-1] > best_mAP:
-            best_mAP = test_info['mAP@AVG'][-1]
-            utils.save_best_record(test_info, os.path.join(args.save_path, '{}_record.txt'.format(args.data_name)))
+        if test_info['mAP@AVG'] > best_mAP:
+            best_mAP = test_info['mAP@AVG']
+            with open(os.path.join(args.save_path, '{}_record.json'.format(args.data_name)), 'w') as f:
+                json.dump(test_info, f, indent=4)
             torch.save(net.state_dict(), os.path.join(args.model_path, '{}_model.pth'.format(args.data_name)))

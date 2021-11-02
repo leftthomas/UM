@@ -17,14 +17,14 @@ class VideoDataset(Dataset):
             mode = 'val' if mode == 'train' else 'test'
             self.rgb = glob.glob(os.path.join(data_path, data_name, 'features', mode, 'rgb', '*'))
             self.flow = glob.glob(os.path.join(data_path, data_name, 'features', mode, 'flow', '*'))
-            with open(os.path.join(data_path, data_name, 'annotations.json')) as f:
+            with open(os.path.join(data_path, data_name, 'annotations.json'), 'r') as f:
                 annotations = json.load(f)['database']
         else:
             mode = 'train' if mode == 'train' else 'val'
             data_name, suffix = data_name[:-3], data_name[-3:]
             self.rgb = glob.glob(os.path.join(data_path, data_name, 'features_{}'.format(suffix), mode, 'rgb', '*'))
             self.flow = glob.glob(os.path.join(data_path, data_name, 'features_{}'.format(suffix), mode, 'flow', '*'))
-            with open(os.path.join(data_path, data_name, 'annotations_{}.json'.format(suffix))) as f:
+            with open(os.path.join(data_path, data_name, 'annotations_{}.json'.format(suffix)), 'r') as f:
                 annotations = json.load(f)['database']
 
         # prepare labels
