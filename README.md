@@ -77,105 +77,107 @@ python test.py --model_file --data_name thumos14 --model_file result/thumos14_mo
 The models are trained on one NVIDIA GeForce GTX 1080 Ti GPU (11G). All the hyper-parameters are the default values
 according to the papers.
 
+### THUMOS14
+
 <table>
 <thead>
   <tr>
-    <th rowspan="3">Backbone</th>
-    <th rowspan="3">Dim</th>
-    <th colspan="4">Sketchy Extended</th>
-    <th colspan="4">TU-Berlin Extended</th>
+    <th rowspan="3">Method</th>
+    <th colspan="8">THUMOS14</th>
     <th rowspan="3">Download</th>
   </tr>
   <tr>
-    <td align="center">mAP@200</td>
-    <td align="center">mAP@all</td>
-    <td align="center">P@100</td>
-    <td align="center">P@200</td>
-    <td align="center">mAP@200</td>
-    <td align="center">mAP@all</td>
-    <td align="center">P@100</td>
-    <td align="center">P@200</td>
+    <td align="center">mAP@0.1</td>
+    <td align="center">mAP@0.2</td>
+    <td align="center">mAP@0.3</td>
+    <td align="center">mAP@0.4</td>
+    <td align="center">mAP@0.5</td>
+    <td align="center">mAP@0.6</td>
+    <td align="center">mAP@0.7</td>
+    <td align="center">mAP@AVG</td>
   </tr>
 </thead>
 <tbody>
   <tr>
-    <td align="center">VGG16</td>
-    <td align="center">64</td>
-    <td align="center">53.0</td>
-    <td align="center">38.0</td>
-    <td align="center">50.1</td>
-    <td align="center">46.0</td>
-    <td align="center">54.7</td>
-    <td align="center">37.4</td>
-    <td align="center">52.2</td>
-    <td align="center">49.4</td>
+    <td align="center">Ours</td>
+    <td align="center">67.5</td>
+    <td align="center">61.2</td>
+    <td align="center">52.3</td>
+    <td align="center">43.4</td>
+    <td align="center">33.7</td>
+    <td align="center">22.9</td>
+    <td align="center">12.1</td>
+    <td align="center">41.9</td>
     <td align="center"><a href="https://pan.baidu.com/s/14lJMIRCMJIIM4QrP_Gbqfg">e8db</a></td>
   </tr>
   <tr>
-    <td align="center">VGG16</td>
-    <td align="center">512</td>
-    <td align="center">57.5</td>
-    <td align="center">42.6</td>
-    <td align="center">54.6</td>
-    <td align="center">50.6</td>
-    <td align="center">62.3</td>
-    <td align="center">44.6</td>
-    <td align="center">60.1</td>
-    <td align="center">57.1</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1rdyX8S4J7hHrDk33QHip1A">uiv4</a></td>
-  </tr>
-  <tr>
-    <td align="center">VGG16</td>
-    <td align="center">4096</td>
-    <td align="center">58.6</td>
-    <td align="center">44.4</td>
-    <td align="center">56.0</td>
-    <td align="center">51.9</td>
-    <td align="center">64.3</td>
-    <td align="center">47.6</td>
-    <td align="center">62.5</td>
-    <td align="center">59.7</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1z30aDG-ra0owr2P59SnpZA">mb9f</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">128</td>
-    <td align="center">62.6</td>
-    <td align="center">48.7</td>
-    <td align="center">60.4</td>
-    <td align="center">56.4</td>
+    <td align="center">Official</td>
+    <td align="center">67.5</td>
     <td align="center">61.2</td>
-    <td align="center">46.2</td>
-    <td align="center">59.4</td>
-    <td align="center">57.6</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1aK2xiSPZRPXuORoH-8-aoQ">c7h4</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">512</td>
-    <td align="center">66.2</td>
-    <td align="center">53.2</td>
-    <td align="center">63.9</td>
-    <td align="center">60.1</td>
-    <td align="center">64.8</td>
-    <td align="center">50.3</td>
-    <td align="center">63.0</td>
-    <td align="center">61.1</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1N7iYhbj6GBQ3byRPoekFHA">mhmm</a></td>
-  </tr>
-  <tr>
-    <td align="center">ResNet50</td>
-    <td align="center">2048</td>
-    <td align="center">66.6</td>
-    <td align="center">53.6</td>
-    <td align="center">64.5</td>
-    <td align="center">60.7</td>
-    <td align="center">65.6</td>
-    <td align="center">53.7</td>
-    <td align="center">64.2</td>
-    <td align="center">62.7</td>
-    <td align="center"><a href="https://pan.baidu.com/s/1unfflapyOiRvqEbYMZH-gg">5vcy</a></td>
+    <td align="center">52.3</td>
+    <td align="center">43.4</td>
+    <td align="center">33.7</td>
+    <td align="center">22.9</td>
+    <td align="center">12.1</td>
+    <td align="center">41.9</td>
+    <td align="center">-</td>
   </tr>
 </tbody>
 </table>
 
+mAP@AVG is the average mAP under the thresholds 0.1:0.1:0.7.
+
+### ActivityNet
+
+<table>
+<thead>
+  <tr>
+    <th rowspan="3">Method</th>
+    <th colspan="4">ActivityNet 1.2</th>
+    <th colspan="4">ActivityNet 1.3</th>
+    <th rowspan="3">Download</th>
+  </tr>
+  <tr>
+    <td align="center">mAP@0.5</td>
+    <td align="center">mAP@0.75</td>
+    <td align="center">mAP@0.95</td>
+    <td align="center">mAP@AVG</td>
+    <td align="center">mAP@0.5</td>
+    <td align="center">mAP@0.75</td>
+    <td align="center">mAP@0.95</td>
+    <td align="center">mAP@AVG</td>
+  </tr>
+</thead>
+<tbody>
+  <tr>
+    <td align="center">Ours</td>
+    <td align="center">41.2</td>
+    <td align="center">25.6</td>
+    <td align="center">6.0</td>
+    <td align="center">25.9</td>
+    <td align="center">37.0</td>
+    <td align="center">23.9</td>
+    <td align="center">5.7</td>
+    <td align="center">23.7</td>
+    <td align="center"><a href="https://pan.baidu.com/s/14lJMIRCMJIIM4QrP_Gbqfg">e8db</a></td>
+  </tr>
+  <tr>
+    <td align="center">Official</td>
+    <td align="center">41.2</td>
+    <td align="center">25.6</td>
+    <td align="center">6.0</td>
+    <td align="center">25.9</td>
+    <td align="center">37.0</td>
+    <td align="center">23.9</td>
+    <td align="center">5.7</td>
+    <td align="center">23.7</td>
+    <td align="center">-</td>
+  </tr>
+</tbody>
+</table>
+
+mAP@AVG is the average mAP under the thresholds 0.5:0.05:0.95.
+
+## Reference
+
+This repo is built upon the repo [WTAL-Uncertainty-Modeling](https://github.com/Pilhyeon/WTAL-Uncertainty-Modeling).
