@@ -31,7 +31,7 @@ of `ActivityNet 1.2` dataset can be downloaded from
 [OneDrive](https://emailucr-my.sharepoint.com/personal/sujoy_paul_email_ucr_edu/_layouts/15/onedrive.aspx?originalPath=aHR0cHM6Ly9lbWFpbHVjci1teS5zaGFyZXBvaW50LmNvbS86ZjovZy9wZXJzb25hbC9zdWpveV9wYXVsX2VtYWlsX3Vjcl9lZHUvRXMxemJIUVk0UHhLaFVrZGd2V0h0VTBCSy1feXVnYVNqWEs4NGtXc0IwWEQwdz9ydGltZT1vVlREWlhLUjJVZw&id=%2Fpersonal%2Fsujoy%5Fpaul%5Femail%5Fucr%5Fedu%2FDocuments%2Fwtalc%2Dfeatures)
 , I3D features of `ActivityNet 1.3` dataset can be downloaded
 from [Google Drive](https://drive.google.com/drive/folders/1W2t4UKUkV_9duAsAFWU0HHYWbav2CZXp). You can also download
-these features from [BaiduYun](https://pan.baidu.com/s/1vAmUZxUTvWaQVdeAa4WM3Q), the extract code is `uyfy`. The data
+these features from [BaiduYun](https://pan.baidu.com/s/1etcPkM6-DZxP9-RKLmd1hw), the extract code is `qmo7`. The data
 directory structure is shown as follows:
 
  ```
