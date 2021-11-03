@@ -30,8 +30,9 @@ from official websites. The I3D features of `THUMOS 14` dataset can be downloade
 of `ActivityNet 1.2` dataset can be downloaded from
 [OneDrive](https://emailucr-my.sharepoint.com/personal/sujoy_paul_email_ucr_edu/_layouts/15/onedrive.aspx?originalPath=aHR0cHM6Ly9lbWFpbHVjci1teS5zaGFyZXBvaW50LmNvbS86ZjovZy9wZXJzb25hbC9zdWpveV9wYXVsX2VtYWlsX3Vjcl9lZHUvRXMxemJIUVk0UHhLaFVrZGd2V0h0VTBCSy1feXVnYVNqWEs4NGtXc0IwWEQwdz9ydGltZT1vVlREWlhLUjJVZw&id=%2Fpersonal%2Fsujoy%5Fpaul%5Femail%5Fucr%5Fedu%2FDocuments%2Fwtalc%2Dfeatures)
 , I3D features of `ActivityNet 1.3` dataset can be downloaded
-from [Google Drive](https://drive.google.com/drive/folders/1W2t4UKUkV_9duAsAFWU0HHYWbav2CZXp). The data directory
-structure is shown as follows:
+from [Google Drive](https://drive.google.com/drive/folders/1W2t4UKUkV_9duAsAFWU0HHYWbav2CZXp). You can also download
+these features from [BaiduYun](https://pan.baidu.com/s/1vAmUZxUTvWaQVdeAa4WM3Q), the extract code is `uyfy`. The data
+directory structure is shown as follows:
 
  ```
 ├── thumos14                                    |  ├── activitynet
@@ -63,7 +64,7 @@ You can easily train and test the model by running the script below. If you want
 ### Train Model
 
 ```
-python train.py --data_name activitynet1.2 --num_segments 50 --seed 0
+python train.py --data_name activitynet1.2 --num_segments 50 --seed 0 --scale 16
 ```
 
 ### Test Model
@@ -100,15 +101,15 @@ according to the papers.
 <tbody>
   <tr>
     <td align="center">Ours</td>
-    <td align="center">67.5</td>
-    <td align="center">61.2</td>
-    <td align="center">52.3</td>
-    <td align="center">43.4</td>
-    <td align="center">33.7</td>
-    <td align="center">22.9</td>
-    <td align="center">12.1</td>
-    <td align="center">41.9</td>
-    <td align="center"><a href="https://pan.baidu.com/s/14lJMIRCMJIIM4QrP_Gbqfg">e8db</a></td>
+    <td align="center">60.3</td>
+    <td align="center">54.3</td>
+    <td align="center">45.7</td>
+    <td align="center">37.2</td>
+    <td align="center">27.8</td>
+    <td align="center">18.2</td>
+    <td align="center">9.2</td>
+    <td align="center">36.1</td>
+    <td align="center"><a href="https://pan.baidu.com/s/1mv-RHb9VNu2FYBdzjNehPA">kb79</a></td>
   </tr>
   <tr>
     <td align="center">Official</td>
@@ -151,15 +152,15 @@ mAP@AVG is the average mAP under the thresholds 0.1:0.1:0.7.
 <tbody>
   <tr>
     <td align="center">Ours</td>
-    <td align="center">41.2</td>
-    <td align="center">25.6</td>
-    <td align="center">6.0</td>
-    <td align="center">25.9</td>
-    <td align="center">37.0</td>
-    <td align="center">23.9</td>
-    <td align="center">5.7</td>
-    <td align="center">23.7</td>
-    <td align="center"><a href="https://pan.baidu.com/s/14lJMIRCMJIIM4QrP_Gbqfg">e8db</a></td>
+    <td align="center">1.7</td>
+    <td align="center">0.5</td>
+    <td align="center">0.0</td>
+    <td align="center">0.7</td>
+    <td align="center">0.1</td>
+    <td align="center">0.1</td>
+    <td align="center">0.0</td>
+    <td align="center">0.1</td>
+    <td align="center"><a href="https://pan.baidu.com/s/11_7eu29IQ50rBU2W-dFceg">wexe</a></td>
   </tr>
   <tr>
     <td align="center">Official</td>
